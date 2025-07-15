@@ -11,7 +11,8 @@ const HardGame = require('../models/HardGame');
 const GameRate = require('../models/GameRate');
 const Settings = require('../models/Settings');
 const Admin = require('../models/Admin'); // Make sure Admin model is imported
-
+const upload= require("../utils/upload")
+const cloudinary = require("../utils/cloudinary")
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -33,9 +34,72 @@ const authMiddleware = async (req, res, next) => {
       } catch (error) {
         res.status(401).json({ message: 'Token is not valid' });
       }
-    };
+};
+const uploadToCloudinary = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'user_profiles' },
+          (error, result) => {
+            if (error) {
+              console.error('Cloudinary Upload Error:', error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+        stream.end(fileBuffer);
+      });
+};
+// Update User Details API (with profile image upload)
+router.put('/update/:userId', upload.single('profileImage'), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const {
+      username,
+      email,
+      mobile,
+      password,
+      paymentDetails
+    } = req.body;
 
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
+    // ✅ Upload profile image to Cloudinary if provided
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer);
+      user.profileImage = result.secure_url; // Save Cloudinary URL
+    }
+
+    // ✅ Update other fields
+    if (username) user.username = username;
+    if (email) user.email = email;
+    if (mobile) user.mobile = mobile;
+
+    if (paymentDetails) {
+      user.paymentDetails = {
+        ...user.paymentDetails,
+        ...paymentDetails
+      };
+    }
+
+    // ✅ If password is provided, hash it
+    if (password && password.length >= 6) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      user.password = hashedPassword;
+    }
+
+    await user.save();
+
+    res.status(200).json({ message: 'User details updated successfully', user });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ message: 'Server error while updating user' });
+  }
+});
 // Get Home Dashboard Data
 router.get('/dashboard', authMiddleware, async (req, res) => {
   try {

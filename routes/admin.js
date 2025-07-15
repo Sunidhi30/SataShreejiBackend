@@ -16,7 +16,7 @@ const STATIC_ADMIN_PASSWORD = 'admin@21';
 const router = express.Router();
 const { adminAuth } = require('../middleware/auth');
 
-
+const upload = require("../utils/upload");
 // 1. ADMIN AUTHENTICATION
 // Admin Login
 // === ADMIN SIGNUP ===
@@ -242,7 +242,6 @@ router.get('/users', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get user details
 router.get('/users/:id', adminAuth, async (req, res) => {
   try {
@@ -275,7 +274,6 @@ router.get('/users/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Block/Unblock user
 router.patch('/users/:id/block', adminAuth, async (req, res) => {
   try {
@@ -300,7 +298,6 @@ router.patch('/users/:id/block', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Add points to user
 router.post('/users/:id/add-points', adminAuth, async (req, res) => {
     try {
@@ -348,9 +345,8 @@ router.post('/users/:id/add-points', adminAuth, async (req, res) => {
     } catch (error) {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  });
-  
-// 3. GAME MANAGEMENT
+});
+
 // Get all games
 router.get('/games', adminAuth, async (req, res) => {
   try {
