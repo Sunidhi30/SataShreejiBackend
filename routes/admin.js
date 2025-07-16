@@ -441,7 +441,11 @@ router.delete('/games/:id', adminAuth, async (req, res) => {
 
 // 4. GAME RATES MANAGEMENT
 // Get rates for a game
+<<<<<<< HEAD
 router.get('/games/:gameId/rates=', adminAuth, async (req, res) => {
+=======
+router.get('/games/:gameId/rates', adminAuth, async (req, res) => {
+>>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
   try {
     const rates = await GameRate.find({ gameId: req.params.gameId })
       .populate('gameId', 'name');
@@ -821,4 +825,253 @@ router.get('/reports/users', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+<<<<<<< HEAD
+=======
+
+
+// games and their investors 
+// GET /games/:gameId/investors
+router.get('/:gameId/investors', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+
+    // Find all bets for the specified game and populate user details
+    const bets = await Bet.find({ game: gameId })
+      .populate('user', 'username email profileImage') // get only needed user fields
+      .sort({ createdAt: -1 }); // newest first
+
+    // Format the response
+    const investors = bets.map(bet => ({
+      userId: bet.user._id,
+      username: bet.user.username,
+      email: bet.user.email,
+      profileImage: bet.user.profileImage,
+      betAmount: bet.betAmount,
+      betNumber: bet.betNumber,
+      betType: bet.betType,
+      session: bet.session,
+      status: bet.status,
+      createdAt: bet.createdAt
+    }));
+
+    return res.status(200).json({
+      success: true,
+      gameId,
+      totalInvestors: investors.length,
+      investors
+    });
+  } catch (error) {
+    console.error('Error fetching investors:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+// GET /games/:gameId/investors?sort=highest OR ?sort=lowest
+router.get('/games/:gameId/investors', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { sort } = req.query;
+
+    // Determine sort order based on query
+    const sortOrder = sort === 'lowest' ? 1 : -1; // default to highest first
+
+    // Find all bets for the specified game, sorted by betAmount
+    const bets = await Bet.find({ game: gameId })
+      .populate('user', 'username email profileImage') // populate user details
+      .sort({ betAmount: sortOrder }); // sort by bet amount
+
+    // Format response
+    const investors = bets.map(bet => ({
+      userId: bet.user._id,
+      username: bet.user.username,
+      email: bet.user.email,
+      profileImage: bet.user.profileImage,
+      betAmount: bet.betAmount,
+      betNumber: bet.betNumber,
+      betType: bet.betType,
+      session: bet.session,
+      status: bet.status,
+      createdAt: bet.createdAt
+    }));
+
+    res.status(200).json({
+      success: true,
+      gameId,
+      totalInvestors: investors.length,
+      investors
+    });
+  } catch (error) {
+    console.error('Error fetching investors:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch investors for this game.'
+    });
+  }
+});
+
+// Get winners for a specific game with optional date filter
+router.get('/games/:gameId/winners', adminAuth, async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { 
+      date,
+      betType,
+      page = 1,
+      limit = 10 
+    } = req.query;
+
+    // Build query object
+    const query = { 
+      game: gameId,
+      status: 'won', // Only get winning bets
+      isWinner: true
+    };
+
+    // Add date filter if provided
+    if (date) {
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(date);
+      endDate.setHours(23, 59, 59, 999);
+      query.betDate = { $gte: startDate, $lte: endDate };
+    }
+
+    // Add bet type filter if provided
+    if (betType) {
+      query.betType = betType;
+    }
+
+    // Calculate skip value for pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count of winning bets
+    const total = await Bet.countDocuments(query);
+
+    // Get winning bets with pagination
+    const winners = await Bet.find(query)
+      .populate('user', 'username email mobile') // Include user details
+      .populate('game', 'name gameType') // Include game details
+      .sort({ betDate: -1 }) // Sort by latest first
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Calculate summary statistics
+    const summary = await Bet.aggregate([
+      { $match: query },
+      { $group: {
+        _id: '$betType',
+        totalBets: { $sum: 1 },
+        totalWinAmount: { $sum: '$winningAmount' },
+        totalBetAmount: { $sum: '$betAmount' }
+      }}
+    ]);
+
+    // Format response data
+    const formattedWinners = winners.map(win => ({
+      betId: win.betId,
+      user: {
+        username: win.user.username,
+        email: win.user.email,
+        mobile: win.user.mobile
+      },
+      game: {
+        name: win.game.name,
+        type: win.game.gameType
+      },
+      betType: win.betType,
+      betNumber: win.betNumber,
+      betAmount: win.betAmount,
+      winningAmount: win.winningAmount,
+      resultNumber: win.resultNumber,
+      betDate: win.betDate,
+      session: win.session
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        winners: formattedWinners,
+        summary: {
+          totalWinners: total,
+          betTypeSummary: summary,
+          totalWinAmount: summary.reduce((acc, curr) => acc + curr.totalWinAmount, 0),
+          totalBetAmount: summary.reduce((acc, curr) => acc + curr.totalBetAmount, 0)
+        },
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalRecords: total,
+          limit: parseInt(limit)
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching winners:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching winners',
+      error: error.message
+    });
+  }
+});
+
+// Get specific winner details
+router.get('/games/:gameId/winners/:betId', adminAuth, async (req, res) => {
+  try {
+    const { gameId, betId } = req.params;
+
+    const winnerDetails = await Bet.findOne({
+      game: gameId,
+      betId,
+      status: 'won',
+      isWinner: true
+    })
+    .populate('user', 'username email mobile')
+    .populate('game', 'name gameType');
+
+    if (!winnerDetails) {
+      return res.status(404).json({
+        success: false,
+        message: 'Winner record not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        betId: winnerDetails.betId,
+        user: {
+          username: winnerDetails.user.username,
+          email: winnerDetails.user.email,
+          mobile: winnerDetails.user.mobile
+        },
+        game: {
+          name: winnerDetails.game.name,
+          type: winnerDetails.game.gameType
+        },
+        betType: winnerDetails.betType,
+        betNumber: winnerDetails.betNumber,
+        betAmount: winnerDetails.betAmount,
+        winningAmount: winnerDetails.winningAmount,
+        resultNumber: winnerDetails.resultNumber,
+        betDate: winnerDetails.betDate,
+        session: winnerDetails.session
+      }
+    });
+
+  } catch (error) {
+    console.error('Error fetching winner details:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching winner details',
+      error: error.message
+    });
+  }
+});
+
+
+>>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
 module.exports = router;
