@@ -21,12 +21,13 @@ const userSchema = new mongoose.Schema({
     unique: true,
     trim: true
   },
-  mobile: {
-    type: String,
-    required: false,
-    unique: true,
-        default: '' ,
-  },
+  // mobile: {
+  //   type: String,
+  //   required: false,
+  //   unique: true,
+  //    sparse: true, // 👈 allow multiple nulls
+  //       default: '' ,
+  // },
   password: {
     type: String,
     required: false,

@@ -51,79 +51,102 @@ router.post('/register/request-otp', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+const generateRandomUsername = async () => {
+  const characters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let username;
+  let exists = true;
+
+  while (exists) {
+    // Generate random 8-character username
+    username = 'user_' + Array.from({ length: 6 }, () => characters[Math.floor(Math.random() * characters.length)]).join('');
+    // Check if username already exists
+    exists = await User.exists({ username });
+  }
+
+  return username;
+};
+
+
+
 router.post('/register/verify-otp', async (req, res) => {
-    try {
-      const { email, otp, referralCode } = req.body;
-  
-      if (!email || !otp) {
-        return res.status(400).json({ message: 'Email and OTP are required' });
-      }
-  
-      const savedOTP = otpStore[email];
-      if (!savedOTP) {
-        return res.status(400).json({ message: 'No OTP found for this email. Please request OTP again.' });
-      }
-  
-      // Verify OTP and expiry
-      if (savedOTP.otp !== otp) {
-        return res.status(400).json({ message: 'Invalid OTP' });
-      }
-      if (savedOTP.expiry < Date.now()) {
-        delete otpStore[email];
-        return res.status(400).json({ message: 'OTP expired. Please request OTP again.' });
-      }
-  
-      // Check referralCode if provided
-      let referredBy = null;
-      if (referralCode) {
-        referredBy = await User.findOne({ referralCode });
-        if (!referredBy) {
-          return res.status(400).json({ message: 'Invalid referral code' });
-        }
-      }
-  
-      // Create user
-      const user = new User({
-        email,
-          username: '',
-              mobile: '' ,
-        referredBy: referredBy?._id
-      });
-  
-      await user.save();
-    console.log("User registered:", user);
-      // Add referral bonus if applicable
-      if (referredBy) {
-        referredBy.wallet.balance += 50;
-        referredBy.referralEarnings += 50;
-        await referredBy.save();
-      }
-  
-      // Generate JWT token
-      const token = jwt.sign(
-        { userId: user._id },
-        process.env.JWT_SECRET || 'Apple',
-        { expiresIn: '7d' }
-      );
-  
-      // Clean up OTP
-      delete otpStore[email];
-  
-      res.status(201).json({
-        message: 'User registered successfully',
-        token,
-        user: {
-          id: user._id,
-          email: user.email,
-          wallet: user.wallet,
-          isAdmin: user.isAdmin
-        }
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Server error', error: error.message });
+  try {
+    const { email, otp, referralCode } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: 'Email and OTP are required' });
     }
+
+    const savedOTP = otpStore[email];
+    if (!savedOTP) {
+      return res.status(400).json({ message: 'No OTP found for this email. Please request OTP again.' });
+    }
+
+    // Verify OTP and expiry
+    if (savedOTP.otp !== otp) {
+      return res.status(400).json({ message: 'Invalid OTP' });
+    }
+    if (savedOTP.expiry < Date.now()) {
+      delete otpStore[email];
+      return res.status(400).json({ message: 'OTP expired. Please request OTP again.' });
+    }
+
+    // Check referralCode if provided
+    let referredBy = null;
+    if (referralCode) {
+      referredBy = await User.findOne({ referralCode });
+      if (!referredBy) {
+        return res.status(400).json({ message: 'Invalid referral code' });
+      }
+    }
+
+    // Generate unique random username
+    const randomUsername = await generateRandomUsername();
+
+    // Create user
+    const user = new User({
+      email,
+      username: randomUsername,
+      // mobile: '',
+      referredBy: referredBy?._id
+    });
+
+    await user.save();
+    console.log("User registered:", user);
+
+    // Add referral bonus if applicable
+    if (referredBy) {
+      referredBy.wallet.balance += 50;
+      referredBy.referralEarnings += 50;
+      await referredBy.save();
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'Apple',
+      { expiresIn: '7d' }
+    );
+
+    // Clean up OTP
+    delete otpStore[email];
+
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        username: user.username,
+        wallet: user.wallet,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
 });
+
 router.post('/login/request-otp', async (req, res) => {
   try {
     const { email } = req.body;
