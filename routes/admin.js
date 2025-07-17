@@ -15,7 +15,28 @@ const STATIC_ADMIN_USERNAME = 'admin';
 const STATIC_ADMIN_PASSWORD = 'admin@21';
 const router = express.Router();
 const { adminAuth } = require('../middleware/auth');
-
+// JWT Authentication Middleware
+const authMiddleware = async (req, res, next) => {
+    try {
+        const token = req.header('Authorization')?.replace('Bearer ', '');
+        
+        if (!token) {
+          return res.status(401).json({ message: 'No token provided' });
+        }
+    
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const user = await User.findById(decoded.userId);
+        
+        if (!user) {
+          return res.status(401).json({ message: 'User not found' });
+        }
+    
+        req.user = user;
+        next();
+      } catch (error) {
+        res.status(401).json({ message: 'Token is not valid' });
+      }
+};
 const upload = require("../utils/upload");
 // 1. ADMIN AUTHENTICATION
 // Admin Login
@@ -1069,7 +1090,120 @@ router.get('/games/:gameId/winners/:betId', adminAuth, async (req, res) => {
     });
   }
 });
+// 9. TRANSACTION MANAGEMENT
+router.get('/transactions/pending',  adminAuth, async (req, res) => {
+  try {
+    const transactions = await Transaction.find({ status: 'pending' })
+      .populate('user', 'username email')
+      .sort({ createdAt: -1 });
 
+    res.json({
+      message: 'Pending transactions retrieved successfully',
+      transactions
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+router.post('/transactions/:transactionId/action', adminAuth, async (req, res) => {
+  try {
+    const { transactionId } = req.params;
+    const { action, adminNotes } = req.body;
 
+    const transaction = await Transaction.findById(transactionId);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
 
+    if (transaction.status !== 'pending') {
+      return res.status(400).json({ message: 'Transaction is not pending' });
+    }
+
+    // Process based on admin's action
+    if (action === 'approve') {
+      transaction.status = 'completed';
+      transaction.adminNotes = adminNotes;
+      transaction.processedAt = new Date();
+      transaction.processedBy = req.user._id;
+
+      // Update user wallet
+      const user = await User.findById(transaction.user);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      if (transaction.type === 'deposit') {
+        user.wallet.balance += transaction.amount;
+        user.wallet.totalDeposits += transaction.amount;
+
+        // Handle first deposit referral bonus
+        if (user.referredBy && user.wallet.totalDeposits === transaction.amount) {
+          const referrer = await User.findById(user.referredBy);
+          if (referrer) {
+            const settings = await Settings.findOne({});
+            const referralBonus = settings?.referralBonus || 50;
+
+            referrer.wallet.balance += referralBonus;
+            referrer.referralEarnings += referralBonus;
+            await referrer.save();
+
+            // Create referral bonus transaction
+            const referralTransaction = new Transaction({
+              user: referrer._id,
+              type: 'referral_bonus',
+              amount: referralBonus,
+              paymentMethod: 'wallet',
+              description: `Referral bonus for ${user.username || user.email}`,
+              status: 'completed'
+            });
+            await referralTransaction.save();
+          }
+        }
+      }
+
+      await user.save();
+    } else if (action === 'reject') {
+      transaction.status = 'failed';
+      transaction.adminNotes = adminNotes;
+      transaction.processedAt = new Date();
+      transaction.processedBy = req.user._id;
+    } else {
+      return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'reject'." });
+    }
+
+    await transaction.save();
+
+    res.json({
+      message: `Transaction ${action}ed successfully`,
+      transaction: {
+        id: transaction._id,
+        status: transaction.status,
+        processedAt: transaction.processedAt
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+//Get transaction statistics
+router.get('/transactions/stats',adminAuth, async (req, res) => {
+  try {
+    const stats = await Transaction.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+          totalAmount: { $sum: '$amount' }
+        }
+      }
+    ]);
+
+    res.json({
+      message: 'Transaction statistics retrieved successfully',
+      stats
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 module.exports = router;

@@ -65,9 +65,6 @@ const generateRandomUsername = async () => {
 
   return username;
 };
-
-
-
 router.post('/register/verify-otp', async (req, res) => {
   try {
     const { email, otp, referralCode } = req.body;
@@ -146,7 +143,6 @@ router.post('/register/verify-otp', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 router.post('/login/request-otp', async (req, res) => {
   try {
     const { email } = req.body;
