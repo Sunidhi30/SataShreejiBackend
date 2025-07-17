@@ -85,11 +85,13 @@ router.post('/register/verify-otp', async (req, res) => {
       // Create user
       const user = new User({
         email,
+          username: '',
+              mobile: '' ,
         referredBy: referredBy?._id
       });
   
       await user.save();
-  
+    console.log("User registered:", user);
       // Add referral bonus if applicable
       if (referredBy) {
         referredBy.wallet.balance += 50;
@@ -100,7 +102,7 @@ router.post('/register/verify-otp', async (req, res) => {
       // Generate JWT token
       const token = jwt.sign(
         { userId: user._id },
-        process.env.JWT_SECRET || 'your-secret-key',
+        process.env.JWT_SECRET || 'Apple',
         { expiresIn: '7d' }
       );
   

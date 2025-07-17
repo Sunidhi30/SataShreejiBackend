@@ -6,7 +6,9 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: false,
     unique: true,
-    trim: true
+      sparse: true, // 👈 allow multiple nulls
+    trim: true,
+     default: '' ,
   },
   profileImage: {
     type: String, // will store the image URL
@@ -22,7 +24,8 @@ const userSchema = new mongoose.Schema({
   mobile: {
     type: String,
     required: false,
-    unique: true
+    unique: true,
+        default: '' ,
   },
   password: {
     type: String,
