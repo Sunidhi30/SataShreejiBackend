@@ -106,7 +106,7 @@ router.post('/register/verify-otp', async (req, res) => {
     const user = new User({
       email,
       username: randomUsername,
-      // mobile: '',
+     
       referredBy: referredBy?._id
     });
 
