@@ -441,11 +441,11 @@ router.delete('/games/:id', adminAuth, async (req, res) => {
 
 // 4. GAME RATES MANAGEMENT
 // Get rates for a game
-<<<<<<< HEAD
-router.get('/games/:gameId/rates=', adminAuth, async (req, res) => {
-=======
+// <<<<<<< HEAD
+
+// =======
 router.get('/games/:gameId/rates', adminAuth, async (req, res) => {
->>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
+// >>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
   try {
     const rates = await GameRate.find({ gameId: req.params.gameId })
       .populate('gameId', 'name');
@@ -825,8 +825,6 @@ router.get('/reports/users', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-<<<<<<< HEAD
-=======
 
 
 // games and their investors 
@@ -1073,5 +1071,5 @@ router.get('/games/:gameId/winners/:betId', adminAuth, async (req, res) => {
 });
 
 
->>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
+
 module.exports = router;
