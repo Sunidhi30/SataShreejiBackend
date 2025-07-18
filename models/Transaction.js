@@ -1,5 +1,5 @@
 
-// const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 
 // const transactionSchema = new mongoose.Schema({
 //   user: {
@@ -18,22 +18,25 @@
 //   },
 //   status: {
 //     type: String,
-//     enum: ['pending', 'completed', 'failed', 'cancelled'],
+//     enum: ['pending', 'admin_pending', 'completed', 'failed', 'cancelled'], // ✅ Added 'admin_pending'
 //     default: 'pending'
 //   },
 //   paymentMethod: {
 //     type: String,
-//     enum: ['paytm', 'googlepay', 'wallet', 'razorpay'], // ✅ Added razorpay
+//     enum: ['paytm', 'googlepay', 'wallet', 'razorpay'],
 //     required: true
 //   },
 //   paymentDetails: {
 //     mobileNumber: String,
 //     transactionId: String,
 //     reference: String,
-//     orderId: String,              // ✅ Added for Razorpay
-//     razorpayOrderId: String,      // ✅ Added for Razorpay
-//     razorpayPaymentId: String,    // ✅ Added for Razorpay
-//     razorpaySignature: String     // ✅ Added for Razorpay
+//     orderId: String,
+//     razorpayOrderId: String,
+//     razorpayPaymentId: String,
+//     razorpaySignature: String,
+//     paidAt: Date,           // ✅ Added
+//     completedAt: Date,      // ✅ Added
+//     failedAt: Date          // ✅ Added
 //   },
 //   description: {
 //     type: String,
@@ -43,15 +46,13 @@
 //   processedAt: Date,
 //   processedBy: {
 //     type: mongoose.Schema.Types.ObjectId,
-//     ref: 'User'
+//     ref: 'Admin'  // ✅ Changed from 'User' to 'Admin'
 //   }
 // }, {
 //   timestamps: true
 // });
 
 // module.exports = mongoose.model('Transaction', transactionSchema);
-const mongoose = require('mongoose');
-
 const transactionSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -69,25 +70,22 @@ const transactionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'admin_pending', 'completed', 'failed', 'cancelled'], // ✅ Added 'admin_pending'
+    enum: ['pending', 'admin_pending', 'completed', 'failed', 'cancelled'],
     default: 'pending'
   },
   paymentMethod: {
     type: String,
-    enum: ['paytm', 'googlepay', 'wallet', 'razorpay'],
+    enum: ['paytm', 'googlepay', 'bank_transfer', 'upi', 'wallet', 'razorpay'],
     required: true
   },
   paymentDetails: {
     mobileNumber: String,
+    accountNumber: String,
+    ifscCode: String,
+    accountHolderName: String,
+    upiId: String,
     transactionId: String,
-    reference: String,
-    orderId: String,
-    razorpayOrderId: String,
-    razorpayPaymentId: String,
-    razorpaySignature: String,
-    paidAt: Date,           // ✅ Added
-    completedAt: Date,      // ✅ Added
-    failedAt: Date          // ✅ Added
+    reference: String
   },
   description: {
     type: String,
@@ -97,10 +95,10 @@ const transactionSchema = new mongoose.Schema({
   processedAt: Date,
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Admin'  // ✅ Changed from 'User' to 'Admin'
+    ref: 'Admin'
   }
 }, {
   timestamps: true
 });
 
-module.exports = mongoose.model('Transaction', transactionSchema);
+ module.exports = mongoose.model('Transaction', transactionSchema);

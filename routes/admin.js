@@ -1206,4 +1206,100 @@ router.get('/transactions/stats',adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// GET /admin/withdrawals
+// GET /admin/withdrawals
+router.get('/admin/withdrawals', adminAuth, async (req, res) => {
+  try {
+    // 🔥 Only fetch withdrawals that are pending admin approval
+    const withdrawals = await Transaction.find({ status: 'admin_pending' })
+      .populate('user', 'username email wallet')
+      .sort({ createdAt: -1 }); // Most recent first
+
+    res.status(200).json({
+      message: 'Pending withdrawals fetched successfully',
+      withdrawals
+    });
+  } catch (error) {
+    console.error('Fetch pending withdrawals error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// POST /admin/withdrawals/:id/approve
+router.post('/admin/withdrawalstesting/:id/approve', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+   
+
+    // ✅ Find transaction
+    const transaction = await Transaction.findById(id).populate('user');
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+
+    // ✅ Check if user exists
+    const user = transaction.user;
+  
+
+    if (!user) {
+      return res.status(404).json({ message: 'User linked to this transaction does not exist' });
+    }
+
+    if (transaction.status !== 'admin_pending') {
+      return res.status(400).json({ message: 'Transaction is not pending approval' });
+    }
+
+    // ✅ Check user balance
+    if (user.wallet.balance < transaction.amount) {
+      return res.status(400).json({ message: 'User has insufficient balance' });
+    }
+
+    // ✅ Deduct balance
+    user.wallet.balance -= transaction.amount;
+    user.wallet.totalWithdrawals += transaction.amount;
+    await user.save();
+
+    // ✅ Update transaction
+    transaction.status = 'completed';
+    transaction.processedAt = new Date();
+    transaction.processedBy = req.admin._id;
+    await transaction.save();
+
+    res.status(200).json({ message: 'Withdrawal approved successfully' });
+  } catch (error) {
+    console.error('Approve withdrawal error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// POST /admin/withdrawals/:id/reject
+router.post('/admin/withdrawals/:id/reject', authMiddleware, adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body; // Optional rejection reason
+
+    // ✅ Find transaction
+    const transaction = await Transaction.findById(id);
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+    if (transaction.status !== 'admin_pending') {
+      return res.status(400).json({ message: 'Transaction is not pending approval' });
+    }
+
+    // ✅ Update transaction
+    transaction.status = 'cancelled';
+    transaction.adminNotes = reason || 'Rejected by admin';
+    transaction.processedAt = new Date();
+    transaction.processedBy = req.admin._id;
+    await transaction.save();
+
+    res.status(200).json({ message: 'Withdrawal request rejected successfully' });
+  } catch (error) {
+    console.error('Reject withdrawal error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;

@@ -892,7 +892,7 @@ router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
     const { amount, paymentMethod, mobileNumber } = req.body;
 
     // Validate inputs
-    if (!amount || !paymentMethod || !mobileNumber) {
+    if (!amount ) {
       return res.status(400).json({ message: 'All fields are required' });
     }
 

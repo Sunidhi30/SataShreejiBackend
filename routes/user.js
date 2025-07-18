@@ -965,5 +965,75 @@ router.post('/check-results', authMiddleware, async (req, res) => {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
   });
+  // POST /wallet/withdraw
+router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
+  try {
+    const { 
+      amount, 
+      paymentMethod, 
+      accountNumber, 
+      ifscCode, 
+      accountHolderName, 
+      upiId, 
+      mobileNumber 
+    } = req.body;
+
+    // ✅ Validate required fields
+    if (!amount || !paymentMethod || (!accountNumber && !upiId)) {
+      return res.status(400).json({ message: 'All payment details are required' });
+    }
+
+    const settings = await Settings.findOne({});
+    const minWithdrawal = settings?.minimumWithdrawal || 500;
+
+    // ✅ Minimum amount check
+    if (amount < minWithdrawal) {
+      return res.status(400).json({
+        message: `Minimum withdrawal amount is ${minWithdrawal}`
+      });
+    }
+
+    // ✅ Check user balance
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.wallet.balance < amount) {
+      return res.status(400).json({ message: 'Insufficient balance' });
+    }
+
+    // ✅ Create withdrawal transaction
+    const transaction = new Transaction({
+      user: req.user._id,
+      type: 'withdrawal',
+      amount,
+      paymentMethod,
+      paymentDetails: {
+        accountNumber,
+        ifscCode,
+        accountHolderName,
+        upiId,
+        mobileNumber
+      },
+      description: `Withdrawal via ${paymentMethod}`,
+      status: 'admin_pending' // 🟡 waiting for admin approval
+    });
+
+    await transaction.save();
+
+    res.status(200).json({
+      message: 'Withdrawal request sent to admin for approval',
+      transaction: {
+        id: transaction._id,
+        amount,
+        status: transaction.status,
+        paymentMethod,
+        paymentDetails: transaction.paymentDetails
+      }
+    });
+  } catch (error) {
+    console.error('Withdrawal error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
   
 module.exports = router;
