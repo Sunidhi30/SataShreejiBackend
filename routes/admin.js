@@ -1124,7 +1124,8 @@ router.post('/transactions/:transactionId/action', adminAuth, async (req, res) =
       transaction.status = 'completed';
       transaction.adminNotes = adminNotes;
       transaction.processedAt = new Date();
-      transaction.processedBy = req.user._id;
+   transaction.processedBy = req.admin._id;
+
 
       // Update user wallet
       const user = await User.findById(transaction.user);
@@ -1166,7 +1167,8 @@ router.post('/transactions/:transactionId/action', adminAuth, async (req, res) =
       transaction.status = 'failed';
       transaction.adminNotes = adminNotes;
       transaction.processedAt = new Date();
-      transaction.processedBy = req.user._id;
+     transaction.processedBy = req.admin._id;
+
     } else {
       return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'reject'." });
     }
@@ -1208,7 +1210,7 @@ router.get('/transactions/stats',adminAuth, async (req, res) => {
 });
 // GET /admin/withdrawals
 // GET /admin/withdrawals
-router.get('/admin/withdrawals', adminAuth, async (req, res) => {
+router.get('/users-withdrawals', adminAuth, async (req, res) => {
   try {
     // 🔥 Only fetch withdrawals that are pending admin approval
     const withdrawals = await Transaction.find({ status: 'admin_pending' })
@@ -1226,7 +1228,7 @@ router.get('/admin/withdrawals', adminAuth, async (req, res) => {
 });
 
 // POST /admin/withdrawals/:id/approve
-router.post('/admin/withdrawalstesting/:id/approve', adminAuth, async (req, res) => {
+router.post('/users-withdrawalstesting/:id/approve', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;
    
@@ -1274,7 +1276,7 @@ router.post('/admin/withdrawalstesting/:id/approve', adminAuth, async (req, res)
 });
 
 // POST /admin/withdrawals/:id/reject
-router.post('/admin/withdrawals/:id/reject', authMiddleware, adminAuth, async (req, res) => {
+router.post('/users-withdrawals/:id/reject', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const { reason } = req.body; // Optional rejection reason
@@ -1301,5 +1303,122 @@ router.post('/admin/withdrawals/:id/reject', authMiddleware, adminAuth, async (r
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// GET /admin/withdrawals/approved
+router.get('/users-withdrawals/approved', adminAuth, async (req, res) => {
+  try {
+    // 🔥 Fetch withdrawals approved by admin
+    const approvedWithdrawals = await Transaction.find({ status: 'completed' })
+      .populate('user', 'username email wallet')
+      .sort({ processedAt: -1 }); // Most recent first
+
+    res.status(200).json({
+      message: 'Approved withdrawals fetched successfully',
+      withdrawals: approvedWithdrawals
+    });
+  } catch (error) {
+    console.error('Fetch approved withdrawals error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// GET /admin/withdrawals
+router.get('/users-withdrawals-testing', adminAuth, async (req, res) => {
+  try {
+    const { status } = req.query; // 🔥 Filter by status if provided
+
+    let query = { type: 'withdrawal' }; // Only withdrawals
+
+    if (status) {
+      // If status is passed (e.g., ?status=completed)
+      query.status = status;
+    }
+
+    const withdrawals = await Transaction.find(query)
+      .populate('user', 'username email wallet')
+      .sort({ createdAt: -1 }); // Most recent first
+
+    res.status(200).json({
+      message: 'Withdrawals fetched successfully',
+      withdrawals
+    });
+  } catch (error) {
+    console.error('Fetch withdrawals error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// ✅ GET: Fetch deposit transactions with optional status filter
+// router.get('/testing-transactions/deposits', async (req, res) => {
+//   try {
+//     // Get optional status filter from query params
+//     const { status } = req.query;
+
+//     // Build filter object
+//     let filter = { type: 'deposit' };
+//     if (status) {
+//       filter.status = status; // Apply status filter if provided
+//     }
+
+//     // Fetch transactions
+//     const transactions = await Transaction.find(filter)
+//       .populate('user', 'username email profileImage') // populate user details
+//       .sort({ createdAt: -1 }); // sort latest first
+
+//     res.status(200).json({
+//       success: true,
+//       count: transactions.length,
+//       message: 'Deposit transactions retrieved successfully',
+//       transactions,
+//     });
+//   } catch (error) {
+//     console.error('Error fetching deposit transactions:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch deposit transactions',
+//       error: error.message,
+//     });
+//   }
+// }); 
+
+
+router.get('/testing-transactions/deposits', async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    // Build filter
+    let filter = { type: 'deposit' };
+
+    if (status) {
+      // Normalize and map statuses if needed
+      const statusMap = {
+        rejected: 'failed',
+        approved: 'completed',
+        pending: 'pending',
+      };
+
+      const normalizedStatus = statusMap[status.toLowerCase()] || status.toLowerCase();
+
+      filter.status = normalizedStatus;
+    }
+
+    // Fetch transactions
+    const transactions = await Transaction.find(filter)
+      .populate('user', 'username email profileImage')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: transactions.length,
+      message: 'Deposit transactions retrieved successfully',
+      transactions,
+    });
+  } catch (error) {
+    console.error('Error fetching deposit transactions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch deposit transactions',
+      error: error.message,
+    });
+  }
+});
+
 
 module.exports = router;

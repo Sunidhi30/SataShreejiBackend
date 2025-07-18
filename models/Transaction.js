@@ -53,6 +53,7 @@ const mongoose = require('mongoose');
 // });
 
 // module.exports = mongoose.model('Transaction', transactionSchema);
+
 const transactionSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
