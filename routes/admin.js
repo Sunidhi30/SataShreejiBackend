@@ -12,9 +12,27 @@ const Result = require('../models/Result');
 const Transaction = require('../models/Transaction');
 const Settings = require('../models/Settings');
 const STATIC_ADMIN_USERNAME = 'admin';
+const Notice = require("../models/Notice")
 const STATIC_ADMIN_PASSWORD = 'admin@21';
 const router = express.Router();
+const cloudinary = require("../utils/cloudinary")
 const { adminAuth } = require('../middleware/auth');
+const uploadToCloudinary = (fileBuffer) => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'user_profiles' },
+          (error, result) => {
+            if (error) {
+              console.error('Cloudinary Upload Error:', error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
+          }
+        );
+        stream.end(fileBuffer);
+      });
+};
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -148,7 +166,40 @@ router.post('/change-password', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-router.get('/admin-earnings', async (req, res) => {
+router.put('/update', adminAuth, upload.single('profileImage'), async (req, res) => {
+  try {
+    const {
+      username,
+      email,
+      isActive
+    } = req.body;
+
+    const admin = req.admin; // Get logged-in admin from token
+
+    // ✅ Upload profile image to Cloudinary if provided
+    if (req.file) {
+      const result = await uploadToCloudinary(req.file.buffer);
+      admin.profileImage = result.secure_url; // Save Cloudinary URL
+    }
+
+    // ✅ Update other fields
+    if (username) admin.username = username;
+    if (email) admin.email = email.toLowerCase();
+    if (isActive !== undefined) admin.isActive = isActive;
+
+    await admin.save();
+
+    res.status(200).json({
+      message: 'Admin profile updated successfully',
+      admin
+    });
+  } catch (error) {
+    console.error('Update admin error:', error);
+    res.status(500).json({ message: 'Server error while updating admin', error: error.message });
+  }
+});
+
+router.get('/admin-earnings',adminAuth, async (req, res) => {
   try {
     // ✅ Sum all bet amounts from Bet collection
     const totalBets = await Bet.aggregate([
@@ -180,7 +231,21 @@ router.get('/admin-earnings', async (req, res) => {
     res.status(500).json({ message: "Failed to fetch summary" });
   }
 });
-
+router.get('/profiles', async (req, res) => {
+  try {
+    const admins = await Admin.find().select('-password'); // exclude password
+    res.status(200).json({
+      message: 'Admin profiles fetched successfully',
+      data: admins
+    });
+  } catch (error) {
+    console.error('Error fetching admin profiles:', error);
+    res.status(500).json({
+      message: 'Server error while fetching admin profiles',
+      error: error.message
+    });
+  }
+});
 //Route: Get total user count
 router.get('/users-count', async (req, res) => {
     try {
@@ -1420,5 +1485,92 @@ router.get('/testing-transactions/deposits', async (req, res) => {
   }
 });
 
+//upload new. notices 
+// ✅ Create a new notice
+router.post('/notices', adminAuth, async (req, res) => {
+  try {
+    const { title, description } = req.body;
+    const adminId = req.admin._id; // Admin ID from auth middleware
+
+    const newNotice = new Notice({
+      title,
+      description,
+      createdBy: adminId
+    });
+
+    await newNotice.save();
+
+    res.status(201).json({
+      message: 'Notice created successfully',
+      notice: newNotice
+    });
+  } catch (err) {
+    console.error('Create Notice Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ✅ Get all notices (latest first)
+router.get('/notices', adminAuth, async (req, res) => {
+  try {
+    const notices = await Notice.find()
+      .populate('createdBy', 'username email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: 'Notices retrieved successfully',
+      notices
+    });
+  } catch (err) {
+    console.error('Get Notices Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ✅ Update a notice
+router.put('/notices/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description } = req.body;
+
+    const updatedNotice = await Notice.findByIdAndUpdate(
+      id,
+      { title, description },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedNotice) {
+      return res.status(404).json({ message: 'Notice not found' });
+    }
+
+    res.status(200).json({
+      message: 'Notice updated successfully',
+      notice: updatedNotice
+    });
+  } catch (err) {
+    console.error('Update Notice Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ✅ Delete a notice
+router.delete('/notices/:id', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deletedNotice = await Notice.findByIdAndDelete(id);
+
+    if (!deletedNotice) {
+      return res.status(404).json({ message: 'Notice not found' });
+    }
+
+    res.status(200).json({
+      message: 'Notice deleted successfully'
+    });
+  } catch (err) {
+    console.error('Delete Notice Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
 
 module.exports = router;

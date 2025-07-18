@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
   },
   profileImage: {
     type: String, // will store the image URL
-    default: ''   // default empty string
+    default: 'https://t3.ftcdn.net/jpg/09/48/09/30/360_F_948093078_6kRWXnAWFNEaakRMX5OM9CRNNj2gdIfw.jpg'   // default empty string
   },
   
   email: {
