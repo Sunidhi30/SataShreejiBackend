@@ -9,6 +9,7 @@ const Transaction = require('../models/Transaction');
 const Result = require('../models/Result');
 const HardGame = require('../models/HardGame');
 const GameRate = require('../models/GameRate');
+const GameWin = require("../models/GameWin")
 const Settings = require('../models/Settings');
 const Admin = require('../models/Admin'); // Make sure Admin model is imported
 const upload= require("../utils/upload")
@@ -1034,6 +1035,48 @@ router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// GET /api/games/declared
+router.get('/games-test/declared', async (req, res) => {
+  try {
+    // Find all results where declaredAt exists (results declared)
+    const declaredResults = await Result.find({ declaredAt: { $ne: null } })
+      .populate('gameId', 'name openTime closeTime resultTime currentResult') // populate game details
+      .sort({ declaredAt: -1 }); // latest first
 
+    // Map through results to add winners count
+    const gamesWithWinners = await Promise.all(
+      declaredResults.map(async (result) => {
+        // Count winners for this gameId and result
+        const winnerCount = await GameWin.countDocuments({
+          gameId: result.gameId._id,
+          resultId: result._id
+        });
+
+        return {
+          gameName: result.gameId.name,
+          luckyNumber: result.openResult || result.closeResult || result.spinnerResult,
+          openTime: result.gameId.openTime,
+          closeTime: result.gameId.closeTime,
+          resultTime: result.gameId.resultTime,
+          declaredAt: result.declaredAt,
+          totalWinners: winnerCount
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      count: gamesWithWinners.length,
+      data: gamesWithWinners
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch declared games',
+      error: error.message
+    });
+  }
+});
   
 module.exports = router;
