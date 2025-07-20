@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -293,7 +293,38 @@
         });
 
         // Load wallet data
-        async function loadWalletData() {
+        // Load wallet data
+async function loadWalletData() {
+    try {
+        const response = await fetch('/api/wallet', {
+            headers: {
+                'Authorization': `Bearer ${your_token_here}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            // Check if data.wallet exists before accessing balance
+            if (data && data.wallet) {
+                walletBalance = data.wallet.balance || 0;
+                recentTransactions = data.recentTransactions || [];
+                
+                document.getElementById('currentBalance').textContent = walletBalance;
+                displayTransactions(recentTransactions);
+            } else {
+                console.error('Invalid wallet data structure:', data);
+                showError('Invalid wallet data received');
+            }
+        } else {
+            const errorData = await response.json();
+            showError(errorData.message || 'Failed to load wallet data');
+        }
+    } catch (error) {
+        console.error('Error loading wallet data:', error);
+        showError('Failed to load wallet data');
+    }
+}
+       
             try {
                 const response = await fetch('/api/wallet', {
                     headers: {
@@ -542,5 +573,247 @@
             }
         }
     </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wallet - API Integration</title>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 30px auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      color: #333;
+    }
+    .btn {
+      background: #667eea;
+      color: #fff;
+      padding: 10px 20px;
+      border: none;
+      margin: 10px 0;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #556cd6;
+    }
+    .input {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+      border-radius: 5px;
+      border: 1px solid #ddd;
+    }
+    .message {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 5px;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .transaction {
+      border-bottom: 1px solid #eee;
+      padding: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Wallet Dashboard</h1>
+    <div>
+      <strong>Current Balance: ₹<span id="walletBalance">0</span></strong>
+    </div>
+    <div id="message" class="message" style="display: none;"></div>
+
+    <h2>Add Money</h2>
+    <input type="number" id="depositAmount" class="input" placeholder="Enter amount (min ₹100)" />
+    <button class="btn" onclick="createOrder()">Deposit via Razorpay</button>
+    <button class="btn" onclick="oldDeposit()">Old Deposit Method</button>
+
+    <h2>Recent Transactions</h2>
+    <div id="transactions"></div>
+
+    <h2>Admin - Pending Deposits</h2>
+    <button class="btn" onclick="loadPendingDeposits()">Load Pending Deposits</button>
+    <div id="pendingDeposits"></div>
+  </div>
+
+  <script>
+    const API_BASE = '/api/wallet';
+    const AUTH_TOKEN = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2ODcyYzhjNjY4MmNiMWNjNzg2ZDc1MzgiLCJpYXQiOjE3NTMwNDM4NjEsImV4cCI6MTc1MzY0ODY2MX0.2ruSypXVD53yNACOg87n17yMPFLAp3o-om3DXPTVB34'; // Replace with actual token
+
+    async function showMessage(type, text) {
+      const messageDiv = document.getElementById('message');
+      messageDiv.className = 'message ' + (type === 'success' ? 'success' : 'error');
+      messageDiv.textContent = text;
+      messageDiv.style.display = 'block';
+      setTimeout(() => messageDiv.style.display = 'none', 4000);
+    }
+
+    async function loadWallet() {
+      try {
+        const res = await fetch(API_BASE, {
+          headers: { 'Authorization': AUTH_TOKEN }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        document.getElementById('walletBalance').textContent = data.wallet.balance;
+        displayTransactions(data.recentTransactions);
+      } catch (err) {
+        console.error(err);
+        showMessage('error', err.message);
+      }
+    }
+
+    function displayTransactions(transactions) {
+      const container = document.getElementById('transactions');
+      container.innerHTML = transactions.map(txn => `
+        <div class="transaction">
+          <div><strong>${txn.description}</strong></div>
+          <div>Amount: ₹${txn.amount} | Status: ${txn.status}</div>
+          <div>Date: ${new Date(txn.createdAt).toLocaleString()}</div>
+        </div>
+      `).join('') || '<p>No transactions found.</p>';
+    }
+
+    async function createOrder() {
+      const amount = document.getElementById('depositAmount').value;
+      if (!amount || amount < 100) return showMessage('error', 'Minimum amount is ₹100');
+
+      try {
+        const res = await fetch(API_BASE + '/create-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': AUTH_TOKEN
+          },
+          body: JSON.stringify({ amount: parseInt(amount) })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        launchRazorpay(data.order, data.transactionId);
+      } catch (err) {
+        console.error(err);
+        showMessage('error', err.message);
+      }
+    }
+
+    function launchRazorpay(order, transactionId) {
+      const options = {
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        order_id: order.id,
+        name: 'Wallet Recharge',
+        handler: async function(response) {
+          await verifyPayment(response, transactionId);
+        }
+      };
+      const rzp = new Razorpay(options);
+      rzp.open();
+    }
+
+    async function verifyPayment(payment, transactionId) {
+      try {
+        const res = await fetch(API_BASE + '/verify-payment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            razorpay_order_id: payment.razorpay_order_id,
+            razorpay_payment_id: payment.razorpay_payment_id,
+            razorpay_signature: payment.razorpay_signature,
+            transactionId
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        showMessage('success', 'Payment successful! Awaiting admin approval.');
+        await loadWallet();
+      } catch (err) {
+        console.error(err);
+        showMessage('error', 'Payment verification failed: ' + err.message);
+      }
+    }
+
+    async function oldDeposit() {
+      const amount = document.getElementById('depositAmount').value;
+      if (!amount || amount < 100) return showMessage('error', 'Minimum amount is ₹100');
+
+      try {
+        const res = await fetch(API_BASE + '/deposit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            amount: parseInt(amount),
+            paymentMethod: 'manual',
+            mobileNumber: '9876543210',
+            transactionId: 'TXN' + Date.now()
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        showMessage('success', 'Deposit request submitted for admin approval.');
+        await loadWallet();
+      } catch (err) {
+        console.error(err);
+        showMessage('error', err.message);
+      }
+    }
+
+    async function loadPendingDeposits() {
+      try {
+        const res = await fetch(API_BASE + '/admin/pending-deposits', {
+          headers: { 'Authorization': AUTH_TOKEN }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+
+        const container = document.getElementById('pendingDeposits');
+        container.innerHTML = data.deposits.map(dep => `
+          <div class="transaction">
+            <div><strong>${dep.user.username}</strong> (₹${dep.amount})</div>
+            <div>Status: ${dep.status}</div>
+            <div>Date: ${new Date(dep.createdAt).toLocaleString()}</div>
+          </div>
+        `).join('') || '<p>No pending deposits.</p>';
+      } catch (err) {
+        console.error(err);
+        showMessage('error', err.message);
+      }
+    }
+
+    window.onload = loadWallet;
+  </script>
 </body>
 </html>

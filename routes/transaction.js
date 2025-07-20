@@ -655,203 +655,203 @@ router.post('/wallet/payment-failed', authMiddleware, async (req, res) => {
   }
 });
 
-// Old deposit method (keeping for backward compatibility) - Also requires admin approval
-router.post('/wallet/deposit', authMiddleware, async (req, res) => {
-  try {
-    const { amount, paymentMethod, mobileNumber, transactionId } = req.body;
+// // Old deposit method (keeping for backward compatibility) - Also requires admin approval
+// router.post('/wallet/deposit', authMiddleware, async (req, res) => {
+//   try {
+//     const { amount, paymentMethod, mobileNumber, transactionId } = req.body;
 
-    // Validate inputs
-    if (!amount || !paymentMethod || !mobileNumber) {
-      return res.status(400).json({ message: 'All fields are required' });
-    }
+//     // Validate inputs
+//     if (!amount || !paymentMethod || !mobileNumber) {
+//       return res.status(400).json({ message: 'All fields are required' });
+//     }
 
-    const settings = await Settings.findOne({});
-    const minDeposit = settings?.minimumDeposit || 100;
+//     const settings = await Settings.findOne({});
+//     const minDeposit = settings?.minimumDeposit || 100;
 
-    if (amount < minDeposit) {
-      return res.status(400).json({ 
-        message: `Minimum deposit amount is ${minDeposit}` 
-      });
-    }
+//     if (amount < minDeposit) {
+//       return res.status(400).json({ 
+//         message: `Minimum deposit amount is ${minDeposit}` 
+//       });
+//     }
 
-    // Create transaction record with admin_pending status
-    const transaction = new Transaction({
-      user: req.user._id,
-      type: 'deposit',
-      amount,
-      paymentMethod,
-      paymentDetails: {
-        mobileNumber,
-        transactionId: transactionId || 'PENDING'
-      },
-      description: `Deposit via ${paymentMethod}`,
-      status: 'admin_pending' // Changed from 'pending' to 'admin_pending'
-    });
+//     // Create transaction record with admin_pending status
+//     const transaction = new Transaction({
+//       user: req.user._id,
+//       type: 'deposit',
+//       amount,
+//       paymentMethod,
+//       paymentDetails: {
+//         mobileNumber,
+//         transactionId: transactionId || 'PENDING'
+//       },
+//       description: `Deposit via ${paymentMethod}`,
+//       status: 'admin_pending' // Changed from 'pending' to 'admin_pending'
+//     });
 
-    await transaction.save();
+//     await transaction.save();
 
-    res.json({
-      message: 'Deposit request submitted successfully. Waiting for admin approval.',
-      transaction: {
-        id: transaction._id,
-        amount,
-        status: transaction.status,
-        paymentMethod
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-// ADMIN ROUTES - Get Pending Deposits for Approval
-router.get('/wallet/admin/pending-deposits', adminMiddleware, async (req, res) => {
-  try {
-    const { page = 1, limit = 10 } = req.query;
+//     res.json({
+//       message: 'Deposit request submitted successfully. Waiting for admin approval.',
+//       transaction: {
+//         id: transaction._id,
+//         amount,
+//         status: transaction.status,
+//         paymentMethod
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
+// // ADMIN ROUTES - Get Pending Deposits for Approval
+// router.get('/wallet/admin/pending-deposits', adminMiddleware, async (req, res) => {
+//   try {
+//     const { page = 1, limit = 10 } = req.query;
 
-    const pendingDeposits = await Transaction.find({
-      type: 'deposit',
-      status: 'admin_pending'
-    })
-    .populate('user', 'username email')
-    .sort({ createdAt: -1 })
-    .limit(limit * 1)
-    .skip((page - 1) * limit);
+//     const pendingDeposits = await Transaction.find({
+//       type: 'deposit',
+//       status: 'admin_pending'
+//     })
+//     .populate('user', 'username email')
+//     .sort({ createdAt: -1 })
+//     .limit(limit * 1)
+//     .skip((page - 1) * limit);
 
-    const total = await Transaction.countDocuments({
-      type: 'deposit',
-      status: 'admin_pending'
-    });
+//     const total = await Transaction.countDocuments({
+//       type: 'deposit',
+//       status: 'admin_pending'
+//     });
 
-    res.json({
-      message: 'Pending deposits retrieved successfully',
-      deposits: pendingDeposits,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+//     res.json({
+//       message: 'Pending deposits retrieved successfully',
+//       deposits: pendingDeposits,
+//       pagination: {
+//         page: parseInt(page),
+//         limit: parseInt(limit),
+//         total,
+//         pages: Math.ceil(total / limit)
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 
-// ADMIN ROUTES - Approve Deposit
-router.post('/wallet/admin/approve-deposit/:transactionId', adminMiddleware, async (req, res) => {
-  try {
-    const { transactionId } = req.params;
-    const { adminNotes } = req.body;
+// // ADMIN ROUTES - Approve Deposit
+// router.post('/wallet/admin/approve-deposit/:transactionId', adminMiddleware, async (req, res) => {
+//   try {
+//     const { transactionId } = req.params;
+//     const { adminNotes } = req.body;
 
-    const transaction = await Transaction.findById(transactionId);
-    if (!transaction) {
-      return res.status(404).json({ message: 'Transaction not found' });
-    }
+//     const transaction = await Transaction.findById(transactionId);
+//     if (!transaction) {
+//       return res.status(404).json({ message: 'Transaction not found' });
+//     }
 
-    if (transaction.status !== 'admin_pending') {
-      return res.status(400).json({ message: 'Transaction is not pending approval' });
-    }
+//     if (transaction.status !== 'admin_pending') {
+//       return res.status(400).json({ message: 'Transaction is not pending approval' });
+//     }
 
-    // Update transaction status
-    transaction.status = 'completed';
-    transaction.adminNotes = adminNotes || 'Approved by admin';
-    transaction.processedAt = new Date();
-    transaction.processedBy = req.admin._id;
-    await transaction.save();
+//     // Update transaction status
+//     transaction.status = 'completed';
+//     transaction.adminNotes = adminNotes || 'Approved by admin';
+//     transaction.processedAt = new Date();
+//     transaction.processedBy = req.admin._id;
+//     await transaction.save();
 
-    // Update user wallet
-    const user = await User.findById(transaction.user);
-    user.wallet.balance += transaction.amount;
-    user.wallet.totalDeposits += transaction.amount;
-    await user.save();
+//     // Update user wallet
+//     const user = await User.findById(transaction.user);
+//     user.wallet.balance += transaction.amount;
+//     user.wallet.totalDeposits += transaction.amount;
+//     await user.save();
 
-    // Handle referral bonus if applicable
-    if (user.referredBy && user.wallet.totalDeposits === transaction.amount) {
-      // This is the first deposit, give referral bonus
-      const referrer = await User.findById(user.referredBy);
-      if (referrer) {
-        const settings = await Settings.findOne({});
-        const referralBonus = settings?.referralBonus || 50;
+//     // Handle referral bonus if applicable
+//     if (user.referredBy && user.wallet.totalDeposits === transaction.amount) {
+//       // This is the first deposit, give referral bonus
+//       const referrer = await User.findById(user.referredBy);
+//       if (referrer) {
+//         const settings = await Settings.findOne({});
+//         const referralBonus = settings?.referralBonus || 50;
         
-        referrer.wallet.balance += referralBonus;
-        referrer.referralEarnings += referralBonus;
-        await referrer.save();
+//         referrer.wallet.balance += referralBonus;
+//         referrer.referralEarnings += referralBonus;
+//         await referrer.save();
 
-        // Create referral bonus transaction
-        const referralTransaction = new Transaction({
-          user: referrer._id,
-          type: 'referral',
-          amount: referralBonus,
-          paymentMethod: 'wallet',
-          description: `Referral bonus for ${user.username || user.email}`,
-          status: 'completed'
-        });
-        await referralTransaction.save();
-      }
-    }
+//         // Create referral bonus transaction
+//         const referralTransaction = new Transaction({
+//           user: referrer._id,
+//           type: 'referral',
+//           amount: referralBonus,
+//           paymentMethod: 'wallet',
+//           description: `Referral bonus for ${user.username || user.email}`,
+//           status: 'completed'
+//         });
+//         await referralTransaction.save();
+//       }
+//     }
 
-    res.json({
-      message: 'Deposit approved successfully',
-      transaction: {
-        id: transaction._id,
-        amount: transaction.amount,
-        status: transaction.status
-      },
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        wallet: user.wallet
-      }
-    });
-  } catch (error) {
-    console.error('Error approving deposit:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+//     res.json({
+//       message: 'Deposit approved successfully',
+//       transaction: {
+//         id: transaction._id,
+//         amount: transaction.amount,
+//         status: transaction.status
+//       },
+//       user: {
+//         id: user._id,
+//         username: user.username,
+//         email: user.email,
+//         wallet: user.wallet
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error approving deposit:', error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 
-// ADMIN ROUTES - Reject Deposit
-router.post('/wallet/admin/reject-deposit/:transactionId', adminMiddleware, async (req, res) => {
-  try {
-    const { transactionId } = req.params;
-    const { adminNotes } = req.body;
+// // ADMIN ROUTES - Reject Deposit
+// router.post('/wallet/admin/reject-deposit/:transactionId', adminMiddleware, async (req, res) => {
+//   try {
+//     const { transactionId } = req.params;
+//     const { adminNotes } = req.body;
 
-    const transaction = await Transaction.findById(transactionId);
-    if (!transaction) {
-      return res.status(404).json({ message: 'Transaction not found' });
-    }
+//     const transaction = await Transaction.findById(transactionId);
+//     if (!transaction) {
+//       return res.status(404).json({ message: 'Transaction not found' });
+//     }
 
-    if (transaction.status !== 'admin_pending') {
-      return res.status(400).json({ message: 'Transaction is not pending approval' });
-    }
+//     if (transaction.status !== 'admin_pending') {
+//       return res.status(400).json({ message: 'Transaction is not pending approval' });
+//     }
 
-    // Update transaction status
-    transaction.status = 'cancelled';
-    transaction.adminNotes = adminNotes || 'Rejected by admin';
-    transaction.processedAt = new Date();
-    transaction.processedBy = req.admin._id;
-    await transaction.save();
+//     // Update transaction status
+//     transaction.status = 'cancelled';
+//     transaction.adminNotes = adminNotes || 'Rejected by admin';
+//     transaction.processedAt = new Date();
+//     transaction.processedBy = req.admin._id;
+//     await transaction.save();
 
-    const user = await User.findById(transaction.user);
+//     const user = await User.findById(transaction.user);
 
-    res.json({
-      message: 'Deposit rejected successfully',
-      transaction: {
-        id: transaction._id,
-        amount: transaction.amount,
-        status: transaction.status
-      },
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email
-      }
-    });
-  } catch (error) {
-    console.error('Error rejecting deposit:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+//     res.json({
+//       message: 'Deposit rejected successfully',
+//       transaction: {
+//         id: transaction._id,
+//         amount: transaction.amount,
+//         status: transaction.status
+//       },
+//       user: {
+//         id: user._id,
+//         username: user.username,
+//         email: user.email
+//       }
+//     });
+//   } catch (error) {
+//     console.error('Error rejecting deposit:', error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 
 // ADMIN ROUTES - Get All Deposits (with filters)
 router.get('/wallet/admin/deposits', adminMiddleware, async (req, res) => {

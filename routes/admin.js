@@ -1180,9 +1180,10 @@ router.post('/transactions/:transactionId/action', adminAuth, async (req, res) =
       return res.status(404).json({ message: 'Transaction not found' });
     }
 
-    if (transaction.status !== 'pending') {
-      return res.status(400).json({ message: 'Transaction is not pending' });
-    }
+    if (transaction.status !== 'pending' && transaction.status !== 'admin_pending') {
+  return res.status(400).json({ message: 'Transaction is not pending' });
+}
+
 
     // Process based on admin's action
     if (action === 'approve') {
@@ -1443,7 +1444,6 @@ router.get('/users-withdrawals-testing', adminAuth, async (req, res) => {
 //   }
 // }); 
 
-
 router.get('/testing-transactions/deposits', async (req, res) => {
   try {
     const { status } = req.query;
@@ -1452,11 +1452,10 @@ router.get('/testing-transactions/deposits', async (req, res) => {
     let filter = { type: 'deposit' };
 
     if (status) {
-      // Normalize and map statuses if needed
       const statusMap = {
         rejected: 'failed',
         approved: 'completed',
-        pending: 'pending',
+        pending: ['pending', 'admin_pending'], // include admin_pending as pending
       };
 
       const normalizedStatus = statusMap[status.toLowerCase()] || status.toLowerCase();
@@ -1467,7 +1466,15 @@ router.get('/testing-transactions/deposits', async (req, res) => {
     // Fetch transactions
     const transactions = await Transaction.find(filter)
       .populate('user', 'username email profileImage')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean(); // Get plain JS objects to modify
+
+    // Normalize admin_pending → pending
+    transactions.forEach(txn => {
+      if (txn.status === 'admin_pending') {
+        txn.status = 'pending';
+      }
+    });
 
     res.status(200).json({
       success: true,
@@ -1484,6 +1491,48 @@ router.get('/testing-transactions/deposits', async (req, res) => {
     });
   }
 });
+
+// router.get('/testing-transactions/deposits', async (req, res) => {
+//   try {
+//     const { status } = req.query;
+
+//     // Build filter
+//     let filter = { type: 'deposit' };
+
+//     if (status) {
+//       // Normalize and map statuses if needed
+//       const statusMap = {
+//         rejected: 'failed',
+//         approved: 'completed',
+//               pending: ['pending', 'admin_pending'], // include admin_pending as pending
+
+//       };
+
+//       const normalizedStatus = statusMap[status.toLowerCase()] || status.toLowerCase();
+
+//       filter.status = normalizedStatus;
+//     }
+
+//     // Fetch transactions
+//     const transactions = await Transaction.find(filter)
+//       .populate('user', 'username email profileImage')
+//       .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       success: true,
+//       count: transactions.length,
+//       message: 'Deposit transactions retrieved successfully',
+//       transactions,
+//     });
+//   } catch (error) {
+//     console.error('Error fetching deposit transactions:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch deposit transactions',
+//       error: error.message,
+//     });
+//   }
+// });
 
 //upload new. notices 
 // ✅ Create a new notice
