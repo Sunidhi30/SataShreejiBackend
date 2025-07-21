@@ -14,6 +14,8 @@ const Settings = require('../models/Settings');
 const Admin = require('../models/Admin'); // Make sure Admin model is imported
 const upload= require("../utils/upload")
 const cloudinary = require("../utils/cloudinary")
+const mongoose = require('mongoose');
+
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -470,130 +472,80 @@ router.get('/hard-game/status', authMiddleware, async (req, res) => {
 });
 
 // // Play Hard Game (Spinner)
-// router.post('/hard-game/play', authMiddleware, async (req, res) => {
-//   try {
-//     const { betAmount, selectedNumber } = req.body;
-
-//     // Validate inputs
-//     if (!betAmount || selectedNumber === undefined) {
-//       return res.status(400).json({ message: 'Bet amount and selected number are required' });
-//     }
-
-//     if (betAmount < 1) {
-//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
-//     }
-
-//     if (selectedNumber < 0 || selectedNumber > 9) {
-//       return res.status(400).json({ message: 'Selected number must be between 0-9' });
-//     }
-
-//     // Check if user has sufficient balance
-//     if (req.user.wallet.balance < betAmount) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // Set next result time
-//     const nextResultTime = new Date();
-//     nextResultTime.setMinutes(nextResultTime.getMinutes() + 5);
-
-//     // Create hard game entry
-//     const hardGame = new HardGame({
-//       user: req.user._id,
-//       betAmount,
-//       selectedNumber,
-//       nextResultTime
-//     });
-
-//     await hardGame.save();
-
-//     // Deduct amount from user wallet
-//     await User.findByIdAndUpdate(req.user._id, {
-//       $inc: { 'wallet.balance': -betAmount }
-//     });
-
-//     // Create transaction record
-//     await new Transaction({
-//       user: req.user._id,
-//       type: 'bet',
-//       amount: betAmount,
-//       status: 'completed',
-//       paymentMethod: 'wallet',
-//       description: `Hard game bet - Number ${selectedNumber}`
-//     }).save();
-
-//     res.json({
-//       message: 'Hard game bet placed successfully',
-//       gameId: hardGame._id,
-//       nextResultTime,
-//       selectedNumber,
-//       betAmount
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-// Play Hard Game (Spinner)
-router.post('/hard-game/play', authMiddleware, async (req, res) => {
+// User plays the Hard Game
+// User plays the Hard Game
+// User plays the Hard Game
+router.post('/user/play-hardgames', authMiddleware, async (req, res) => {
   try {
-    const { betAmount, selectedNumber } = req.body;
+    const { gameId, selectedNumber, betAmount } = req.body;
 
-    // ✅ Validate inputs
-    if (!betAmount || selectedNumber === undefined) {
-      return res.status(400).json({ message: 'Bet amount and selected number are required' });
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      return res.status(400).json({ message: 'Invalid game ID' });
     }
-
-    if (betAmount < 1) {
-      return res.status(400).json({ message: 'Minimum bet amount is 1' });
-    }
-
     if (selectedNumber < 0 || selectedNumber > 9) {
-      return res.status(400).json({ message: 'Selected number must be between 0-9' });
+      return res.status(400).json({ message: 'Selected number must be between 0 and 9' });
+    }
+    if (betAmount <= 0) {
+      return res.status(400).json({ message: 'Bet amount must be greater than 0' });
     }
 
-    // ✅ Check if user has sufficient balance
-    if (req.user.wallet.balance < betAmount) {
-      return res.status(400).json({ message: 'Insufficient balance' });
+    // Find the hard game by ID
+    const hardGame = await HardGame.findById(gameId);
+    if (!hardGame) {
+      return res.status(404).json({ message: 'Hard game not found with this ID' });
     }
 
-    // ✅ Set next result time
-    const nextResultTime = new Date();
-    nextResultTime.setMinutes(nextResultTime.getMinutes() + 5);
+    // Fetch user wallet
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-    // ✅ Create hard game entry
-    const hardGame = new HardGame({
+    // Check wallet balance
+    if (user.walletBalance < betAmount) {
+      return res.status(400).json({ message: 'Insufficient wallet balance' });
+    }
+
+    // Deduct wallet
+    user.walletBalance -= betAmount;
+
+    // Prepare the bet
+    let status = 'pending';
+    let winningAmount = 0;
+
+    // ✅ Check if result already declared
+    if (hardGame.resultNumber !== undefined && hardGame.resultNumber !== null) {
+      if (selectedNumber === hardGame.resultNumber) {
+        // User won
+        status = 'won';
+        winningAmount = betAmount * 9; // Example payout multiplier
+        user.walletBalance += winningAmount; // Credit winnings
+      } else {
+        // User lost
+        status = 'lost';
+      }
+    }
+
+    // Save updated user wallet
+    await user.save();
+
+    // Save the user's bet
+    const userBet = new HardGame({
       user: req.user._id,
       betAmount,
       selectedNumber,
-      nextResultTime
+      resultNumber: hardGame.resultNumber, // save declared result (if exists)
+      winningAmount,
+      nextResultTime: hardGame.nextResultTime,
+      status
     });
+    await userBet.save();
 
-    await hardGame.save();
-
-    // ✅ Deduct amount from user wallet
-    await User.findByIdAndUpdate(req.user._id, {
-      $inc: { 'wallet.balance': -betAmount }
-    });
-
-    // ✅ Add amount to admin earnings
-    await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
-
-    // ✅ Create transaction record
-    await new Transaction({
-      user: req.user._id,
-      type: 'bet',
-      amount: betAmount,
-      status: 'completed',
-      paymentMethod: 'wallet',
-      description: `Hard game bet - Number ${selectedNumber}`
-    }).save();
-
-    // ✅ Respond with success
-    res.json({
-      message: 'Hard game bet placed successfully',
-      gameId: hardGame._id,
-      nextResultTime,
-      selectedNumber,
-      betAmount
+    res.status(201).json({
+      message: `Your bet has been placed successfully and is currently "${status}".`,
+      walletBalance: user.walletBalance,
+      userBet
     });
   } catch (error) {
     console.error(error);
@@ -601,32 +553,25 @@ router.post('/hard-game/play', authMiddleware, async (req, res) => {
   }
 });
 
-// Get Hard Game History
-router.get('/hard-game/history', authMiddleware, async (req, res) => {
+
+// Get Hard Game history for the logged-in user
+router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    // Fetch all HardGame bets for the logged-in user
+    const userHistory = await HardGame.find({ user: req.user._id })
+      .sort({ createdAt: -1 }); // Latest first
 
-    const hardGames = await HardGame.find({ user: req.user._id })
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await HardGame.countDocuments({ user: req.user._id });
-
-    res.json({
-      message: 'Hard game history retrieved',
-      hardGames,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / limit)
-      }
+    res.status(200).json({
+      message: 'Hard Game history fetched successfully',
+      totalBets: userHistory.length,
+      history: userHistory
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 
 // ==============================================
 // RESULTS & HISTORY ROUTES
@@ -662,6 +607,27 @@ router.get('/results/last-five', authMiddleware, async (req, res) => {
     res.json({
       message: 'Last 5 results retrieved successfully',
       results: lastResults
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Get History of Hard Game Results
+router.get('/results/hard-history', authMiddleware, async (req, res) => {
+  try {
+    const hardGameResults = await Result.find({})
+      .populate({
+        path: 'gameId',
+        match: { gameType: 'hard' } // Only games with gameType 'hard'
+      })
+      .sort({ declaredAt: -1 }); // Most recent first
+
+    // Remove results where gameId is null (filtered out in populate)
+    const filteredResults = hardGameResults.filter(result => result.gameId !== null);
+
+    res.json({
+      message: 'Hard game results history retrieved successfully',
+      results: filteredResults
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

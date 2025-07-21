@@ -1,19 +1,21 @@
 const mongoose = require('mongoose');
 
 const hardGameSchema = new mongoose.Schema({
+  gameName: {
+    type: String,
+    trim: true,
+    required: false
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
   },
   betAmount: {
     type: Number,
-    required: true,
     min: 1
   },
   selectedNumber: {
     type: Number,
-    required: true,
     min: 0,
     max: 9
   },
@@ -42,5 +44,6 @@ const hardGameSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
 
 module.exports = mongoose.model('HardGame', hardGameSchema);

@@ -4,6 +4,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/Admin');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const Game = require('../models/Game');
 const GameRate = require('../models/GameRate');
 const Bet = require('../models/Bet');
@@ -1621,5 +1622,89 @@ router.delete('/notices/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+// Declare Result for Hard Game (Admin only)
+// Declare Result for Hard Game (Admin only)
+// Admin creates a new Hard Game session
+router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
+  try {
+    const { gameName, nextResultTime } = req.body;
+
+    const newHardGame = new HardGame({
+      gameName,
+      nextResultTime
+    });
+
+    await newHardGame.save();
+
+    res.status(201).json({
+      message: 'Hard game created successfully',
+      hardGame: newHardGame
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Admin declares result for Hard Game
+// Admin declares result for Hard Game
+router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
+  try {
+    const { gameId, resultDigit } = req.body;
+
+    // Validate inputs
+    if (!mongoose.Types.ObjectId.isValid(gameId)) {
+      return res.status(400).json({ message: 'Invalid game ID' });
+    }
+    if (resultDigit < 0 || resultDigit > 9) {
+      return res.status(400).json({ message: 'Result digit must be between 0 and 9' });
+    }
+
+    // Find all user bets for this hard game
+    const userBets = await HardGame.find({
+      _id: gameId,
+      status: 'pending'
+    });
+
+    if (userBets.length === 0) {
+      return res.status(404).json({ message: 'No pending bets found for this hard game' });
+    }
+
+    let winners = 0;
+    for (const bet of userBets) {
+      if (bet.selectedNumber === resultDigit) {
+        bet.resultNumber = resultDigit;
+        bet.status = 'won';
+        bet.winningAmount = bet.betAmount * 9; // Example payout multiplier
+        winners++;
+
+        // Credit user wallet
+        const user = await User.findById(bet.user);
+        if (user) {
+          user.walletBalance += bet.winningAmount;
+          await user.save();
+        }
+      } else {
+        bet.resultNumber = resultDigit;
+        bet.status = 'lost';
+        bet.winningAmount = 0;
+      }
+      await bet.save();
+    }
+
+    res.status(200).json({
+      message: `Result declared successfully for game ID ${gameId}`,
+      resultDigit,
+      totalParticipants: userBets.length,
+      totalWinners: winners
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+
+
+
 
 module.exports = router;
