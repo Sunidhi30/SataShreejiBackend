@@ -15,7 +15,7 @@ const Admin = require('../models/Admin'); // Make sure Admin model is imported
 const upload= require("../utils/upload")
 const cloudinary = require("../utils/cloudinary")
 const mongoose = require('mongoose');
-
+const Notice = require("../models/Notice")
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -1208,6 +1208,22 @@ router.get('/hardgame/user/historys', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// ✅ Get all notices (latest first)
+router.get('/notices', async (req, res) => {
+  try {
+    const notices = await Notice.find()
+      .populate('createdBy', 'username email')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      message: 'Notices retrieved successfully',
+      notices
+    });
+  } catch (err) {
+    console.error('Get Notices Error:', err);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 
