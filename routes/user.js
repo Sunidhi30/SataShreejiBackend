@@ -162,7 +162,6 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get Today's Lucky Number
 router.get('/today-number', authMiddleware, async (req, res) => {
   try {
@@ -191,7 +190,6 @@ router.get('/today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get All Games
 router.get('/games', authMiddleware, async (req, res) => {
   try {
@@ -236,7 +234,6 @@ router.get('/games', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get Game Details
 router.get('/games/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -266,7 +263,6 @@ router.get('/games/:gameId', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Place Bet on Number Game
 // router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 //   try {
@@ -437,11 +433,9 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // ==============================================
 // HARD GAME (SPINNER) ROUTES
 // ==============================================
-
 // Get Hard Game Status
 router.get('/hard-game/status', authMiddleware, async (req, res) => {
   try {
@@ -470,10 +464,6 @@ router.get('/hard-game/status', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-// // Play Hard Game (Spinner)
-// User plays the Hard Game
-// User plays the Hard Game
 // User plays the Hard Game
 router.post('/user/play-hardgames', authMiddleware, async (req, res) => {
   try {
@@ -572,7 +562,6 @@ router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
 // ==============================================
 // RESULTS & HISTORY ROUTES
 // ==============================================
-
 // Get Live Results
 router.get('/results/live', authMiddleware, async (req, res) => {
   try {
@@ -591,7 +580,6 @@ router.get('/results/live', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get Last 5 Results
 router.get('/results/last-five', authMiddleware, async (req, res) => {
   try {
@@ -629,7 +617,6 @@ router.get('/results/hard-history', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get Result History
 router.get('/results/history', authMiddleware, async (req, res) => {
   try {
@@ -662,11 +649,9 @@ router.get('/results/history', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // ==============================================
 // ACCOUNT MANAGEMENT ROUTES
 // ==============================================
-
 // Get User Profile
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
@@ -694,7 +679,6 @@ router.get('/profile', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Update Profile
 router.put('/profile', authMiddleware, async (req, res) => {
   try {
@@ -719,78 +703,9 @@ router.put('/profile', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-// // Get Bet History
-// router.get('/bets/history', authMiddleware, async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10, status } = req.query;
-
-//     const filter = { user: req.user._id };
-//     if (status) {
-//       filter.status = status;
-//     }
-
-//     const bets = await Bet.find(filter)
-//       .populate('game')
-//       .sort({ createdAt: -1 })
-//       .limit(limit * 1)
-//       .skip((page - 1) * limit);
-
-//     const total = await Bet.countDocuments(filter);
-
-//     res.json({
-//       message: 'Bet history retrieved successfully',
-//       bets,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit)
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-
-// // Get Winning History
-// router.get('/winnings/history', authMiddleware, async (req, res) => {
-//   try {
-//     const { page = 1, limit = 10 } = req.query;
-
-//     const winnings = await Bet.find({ 
-//       user: req.user._id, 
-//       status: 'won' 
-//     })
-//       .populate('game')
-//       .sort({ createdAt: -1 })
-//       .limit(limit * 1)
-//       .skip((page - 1) * limit);
-
-//     const total = await Bet.countDocuments({ 
-//       user: req.user._id, 
-//       status: 'won' 
-//     });
-
-//     res.json({
-//       message: 'Winning history retrieved successfully',
-//       winnings,
-//       pagination: {
-//         page: parseInt(page),
-//         limit: parseInt(limit),
-//         total,
-//         pages: Math.ceil(total / limit)
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-
 // ==============================================
 // REFERRAL SYSTEM ROUTES
 // ==============================================
-
 // Get Referral Details
 router.get('/referral', authMiddleware, async (req, res) => {
   try {
@@ -818,11 +733,9 @@ router.get('/referral', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // ==============================================
 // SETTINGS AND UTILITIES
 // ==============================================
-
 // Get App Settings
 router.get('/settings', authMiddleware, async (req, res) => {
   try {
@@ -841,7 +754,6 @@ router.get('/settings', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // winning for the users check
 // Add this route to check results and update bet status
 router.post('/check-results', authMiddleware, async (req, res) => {
@@ -927,8 +839,8 @@ router.post('/check-results', authMiddleware, async (req, res) => {
       console.error('Error checking results:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  });
-  // POST /wallet/withdraw
+});
+// POST /wallet/withdraw
 router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
   try {
     const { 
@@ -1040,8 +952,6 @@ router.get('/games-test/declared', async (req, res) => {
     });
   }
 });
-// users winnings
-// ✅ GET /api/games/user-regular
 // ✅ GET /api/games/user-regular
 router.get('/user-gaming-history', authMiddleware, async (req, res) => {
   try {
@@ -1151,41 +1061,7 @@ router.get('/user-wins', authMiddleware, async (req, res) => {
     });
   }
 });
-// Get Hard Game history for a particular user (Admin API)
-// router.get('/hardgame/user/:userId', authMiddleware, async (req, res) => {
-//   try {
-//     const { userId } = req.params;
-
-//     // ✅ Check if the logged-in user is admin
-//     const adminUser = await User.findById(req.user._id);
-//     // if (!adminUser || !adminUser.isAdmin) {
-//     //   return res.status(403).json({ message: 'Access denied. Admins only.' });
-//     // }
-
-//     // ✅ Validate userId
-//     if (!mongoose.Types.ObjectId.isValid(userId)) {
-//       return res.status(400).json({ message: 'Invalid user ID' });
-//     }
-
-//     // ✅ Fetch the user's hard game history
-//     const userResults = await HardGame.find({ user: userId })
-//       .populate('user', 'username email profileImage') // Fetch user details
-//       .sort({ createdAt: -1 }); // Latest first
-
-//     if (!userResults || userResults.length === 0) {
-//       return res.status(404).json({ message: 'No hard game results found for this user.' });
-//     }
-
-//     res.status(200).json({
-//       message: 'Hard Game results for user fetched successfully',
-//       totalResults: userResults.length,
-//       results: userResults
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
+//hardgames users history
 router.get('/hardgame/user/historys', authMiddleware, async (req, res) => {
   try {
     // ✅ Get the user ID from the token

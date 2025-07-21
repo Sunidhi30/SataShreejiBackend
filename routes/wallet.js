@@ -15,7 +15,6 @@ router.get('/', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // Request deposit
 router.post('/deposit', auth, async (req, res) => {
   try {
@@ -51,7 +50,6 @@ router.post('/deposit', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // Request withdrawal
 router.post('/withdraw', auth, async (req, res) => {
   try {
@@ -112,7 +110,6 @@ router.post('/withdraw', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // Get transaction history
 router.get('/transactions', auth, async (req, res) => {
   try {
@@ -137,5 +134,4 @@ router.get('/transactions', auth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 module.exports = router;

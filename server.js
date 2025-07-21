@@ -21,20 +21,14 @@ db().then(function (db) {
 // Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
-const gameRoutes = require('./routes/game');
-const betRoutes = require('./routes/bet');
 const walletRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
-const hardGameRoutes = require('./routes/hardGame');
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
-app.use('/api/game', gameRoutes);
-app.use('/api/bet', betRoutes);
 app.use('/api', walletRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/hard-game', hardGameRoutes);
 
 const PORT = process.env.PORT || 9000;
 app.listen(PORT, () => {

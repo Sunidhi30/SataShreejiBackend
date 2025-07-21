@@ -57,8 +57,6 @@ const authMiddleware = async (req, res, next) => {
       }
 };
 const upload = require("../utils/upload");
-// 1. ADMIN AUTHENTICATION
-// Admin Login
 // === ADMIN SIGNUP ===
 router.post('/signup', async (req, res) => {
     try {
@@ -98,8 +96,7 @@ router.post('/signup', async (req, res) => {
       console.error(error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  });
-  
+});
   // === ADMIN LOGIN ===
 router.post('/login', async (req, res) => {
     try {
@@ -145,8 +142,7 @@ router.post('/login', async (req, res) => {
       console.error(error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  });
-  
+});
 // Change Password
 router.post('/change-password', adminAuth, async (req, res) => {
   try {
@@ -199,7 +195,6 @@ router.put('/update', adminAuth, upload.single('profileImage'), async (req, res)
     res.status(500).json({ message: 'Server error while updating admin', error: error.message });
   }
 });
-
 router.get('/admin-earnings',adminAuth, async (req, res) => {
   try {
     // ✅ Sum all bet amounts from Bet collection
@@ -259,7 +254,7 @@ router.get('/users-count', async (req, res) => {
       console.error('Error fetching user count:', error);
       res.status(500).json({ message: 'Server error', error: error.message });
     }
-  });
+});
   // Get Total Bid Amount
 router.get('/total-bid-amount', async (req, res) => {
   try {
@@ -433,7 +428,6 @@ router.post('/users/:id/add-points', adminAuth, async (req, res) => {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
-
 // Get all games
 router.get('/games', adminAuth, async (req, res) => {
   try {
@@ -449,7 +443,6 @@ router.get('/games', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Add new game
 router.post('/games', adminAuth, async (req, res) => {
   try {
@@ -478,7 +471,6 @@ router.post('/games', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Update game
 router.put('/games/:id', adminAuth, async (req, res) => {
   try {
@@ -503,7 +495,6 @@ router.put('/games/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Delete game
 router.delete('/games/:id', adminAuth, async (req, res) => {
   try {
@@ -525,11 +516,7 @@ router.delete('/games/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // 4. GAME RATES MANAGEMENT
-// Get rates for a game
-// <<<<<<< HEAD
-
 // =======
 router.get('/games/:gameId/rates', adminAuth, async (req, res) => {
 // >>>>>>> 9f878bf (Initial commit for SataShreejiBackend)
@@ -545,7 +532,6 @@ router.get('/games/:gameId/rates', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Add/Update game rate
 router.post('/games/:gameId/rates', adminAuth, async (req, res) => {
   try {
@@ -581,7 +567,6 @@ router.post('/games/:gameId/rates', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // 5. RESULT MANAGEMENT
 // Get results for a game
 router.get('/games/:gameId/results', adminAuth, async (req, res) => {
@@ -609,7 +594,6 @@ router.get('/games/:gameId/results', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Declare result
 router.post('/games/:gameId/results', adminAuth, async (req, res) => {
   try {
@@ -688,8 +672,6 @@ router.post('/games/:gameId/results', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-// 6. BET MANAGEMENT
 // Get bets for a game
 router.get('/games/:gameId/bets', adminAuth, async (req, res) => {
   try {
@@ -744,7 +726,6 @@ router.get('/games/:gameId/bets', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // 7. TRANSACTION MANAGEMENT
 // Get withdrawal requests
 router.get('/withdrawals', adminAuth, async (req, res) => {
@@ -778,7 +759,6 @@ router.get('/withdrawals', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Process withdrawal
 router.patch('/withdrawals/:id', adminAuth, async (req, res) => {
   try {
@@ -812,8 +792,6 @@ router.patch('/withdrawals/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-// 8. REPORTS
 // Bet report
 router.get('/reports/bets', adminAuth, async (req, res) => {
   try {
@@ -863,7 +841,6 @@ router.get('/reports/bets', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // User report
 router.get('/reports/users', adminAuth, async (req, res) => {
   try {
@@ -912,9 +889,6 @@ router.get('/reports/users', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
-// games and their investors 
 // GET /games/:gameId/investors
 router.get('/:gameId/investors', async (req, res) => {
   try {
@@ -995,7 +969,6 @@ router.get('/games/:gameId/investors', async (req, res) => {
     });
   }
 });
-
 // Get winners for a specific game with optional date filter
 router.get('/games/:gameId/winners', adminAuth, async (req, res) => {
   try {
@@ -1102,7 +1075,6 @@ router.get('/games/:gameId/winners', adminAuth, async (req, res) => {
     });
   }
 });
-
 // Get specific winner details
 router.get('/games/:gameId/winners/:betId', adminAuth, async (req, res) => {
   try {
@@ -1276,7 +1248,6 @@ router.get('/transactions/stats',adminAuth, async (req, res) => {
   }
 });
 // GET /admin/withdrawals
-// GET /admin/withdrawals
 router.get('/users-withdrawals', adminAuth, async (req, res) => {
   try {
     // 🔥 Only fetch withdrawals that are pending admin approval
@@ -1293,7 +1264,6 @@ router.get('/users-withdrawals', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // POST /admin/withdrawals/:id/approve
 router.post('/users-withdrawalstesting/:id/approve', adminAuth, async (req, res) => {
   try {
@@ -1341,7 +1311,6 @@ router.post('/users-withdrawalstesting/:id/approve', adminAuth, async (req, res)
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // POST /admin/withdrawals/:id/reject
 router.post('/users-withdrawals/:id/reject', adminAuth, async (req, res) => {
   try {
@@ -1412,39 +1381,7 @@ router.get('/users-withdrawals-testing', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// ✅ GET: Fetch deposit transactions with optional status filter
-// router.get('/testing-transactions/deposits', async (req, res) => {
-//   try {
-//     // Get optional status filter from query params
-//     const { status } = req.query;
-
-//     // Build filter object
-//     let filter = { type: 'deposit' };
-//     if (status) {
-//       filter.status = status; // Apply status filter if provided
-//     }
-
-//     // Fetch transactions
-//     const transactions = await Transaction.find(filter)
-//       .populate('user', 'username email profileImage') // populate user details
-//       .sort({ createdAt: -1 }); // sort latest first
-
-//     res.status(200).json({
-//       success: true,
-//       count: transactions.length,
-//       message: 'Deposit transactions retrieved successfully',
-//       transactions,
-//     });
-//   } catch (error) {
-//     console.error('Error fetching deposit transactions:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: 'Failed to fetch deposit transactions',
-//       error: error.message,
-//     });
-//   }
-// }); 
-
+//deposits of the users
 router.get('/testing-transactions/deposits', async (req, res) => {
   try {
     const { status } = req.query;
@@ -1492,7 +1429,6 @@ router.get('/testing-transactions/deposits', async (req, res) => {
     });
   }
 });
-
 // router.get('/testing-transactions/deposits', async (req, res) => {
 //   try {
 //     const { status } = req.query;
@@ -1559,7 +1495,6 @@ router.post('/notices', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // ✅ Get all notices (latest first)
 router.get('/notices', adminAuth, async (req, res) => {
   try {
@@ -1576,7 +1511,6 @@ router.get('/notices', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // ✅ Update a notice
 router.put('/notices/:id', adminAuth, async (req, res) => {
   try {
@@ -1602,7 +1536,6 @@ router.put('/notices/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // ✅ Delete a notice
 router.delete('/notices/:id', adminAuth, async (req, res) => {
   try {
@@ -1622,7 +1555,6 @@ router.delete('/notices/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
 // Admin creates a new Hard Game session
 router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
   try {
@@ -1644,7 +1576,6 @@ router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// Admin declares result for Hard Game
 // Admin declares result for Hard Game
 router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
   try {
@@ -1701,6 +1632,4 @@ router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
 module.exports = router;

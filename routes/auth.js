@@ -4,11 +4,9 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const router = express.Router();
 const otpLoginStore = {}; // In-memory OTP store for login
-
 // Register
 const otpStore = {}; // Temporary in-memory store for OTPs
 const nodemailer = require('nodemailer');
-
 router.post('/register/request-otp', async (req, res) => {
   try {
     const { email } = req.body;
@@ -238,5 +236,4 @@ router.post('/login/verify-otp', async (req, res) => {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
-
 module.exports = router;
