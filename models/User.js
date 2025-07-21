@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-
 const userSchema = new mongoose.Schema({
   username: {
     type: String,
@@ -97,7 +96,6 @@ userSchema.pre('save', async function(next) {
 userSchema.methods.comparePassword = async function(password) {
   return await bcrypt.compare(password, this.password);
 };
-
 userSchema.pre('save', function(next) {
     if (!this.referralCode) {
       // Generate a random 8-character referral code
@@ -105,5 +103,4 @@ userSchema.pre('save', function(next) {
     }
     next();
   });
-
 module.exports = mongoose.model('User', userSchema);

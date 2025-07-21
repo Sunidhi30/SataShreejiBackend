@@ -1,6 +1,5 @@
 // models/Result.js
 const mongoose = require('mongoose');
-
 const resultSchema = new mongoose.Schema({
     gameId: {
       type: mongoose.Schema.Types.ObjectId,
