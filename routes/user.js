@@ -552,8 +552,6 @@ router.post('/user/play-hardgames', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
 // Get Hard Game history for the logged-in user
 router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
   try {
@@ -571,8 +569,6 @@ router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
 // ==============================================
 // RESULTS & HISTORY ROUTES
 // ==============================================
