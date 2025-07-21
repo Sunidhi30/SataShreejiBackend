@@ -1622,8 +1622,7 @@ router.delete('/notices/:id', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-// Declare Result for Hard Game (Admin only)
-// Declare Result for Hard Game (Admin only)
+
 // Admin creates a new Hard Game session
 router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
   try {
@@ -1702,9 +1701,6 @@ router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
-
 
 
 module.exports = router;
