@@ -1040,5 +1040,64 @@ router.get('/games-test/declared', async (req, res) => {
     });
   }
 });
-  
+// users winnings
+// ✅ GET /api/games/user-regular
+// ✅ GET /api/games/user-regular
+router.get('/user-gaming-history', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 📝 Step 1: Find all user bets in "regular" games
+    const userBets = await Bet.find({
+      user: userId,
+      gameType: 'regular'
+    }).populate('game').lean();
+
+    if (userBets.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'User has not placed bets in any regular games.',
+        games: []
+      });
+    }
+
+    // 📝 Step 2: Group bets by game and sum total invested money
+    const gameInvestments = {};
+    userBets.forEach(bet => {
+      const gameId = bet.game._id.toString();
+      if (!gameInvestments[gameId]) {
+        gameInvestments[gameId] = {
+          gameDetails: bet.game,
+          totalInvested: 0
+        };
+      }
+      gameInvestments[gameId].totalInvested += bet.betAmount;
+    });
+
+    // 📝 Step 3: Format response
+    const gamesWithInvestments = Object.values(gameInvestments).map(item => ({
+      _id: item.gameDetails._id,
+      name: item.gameDetails.name,
+      openTime: item.gameDetails.openTime,
+      closeTime: item.gameDetails.closeTime,
+      resultTime: item.gameDetails.resultTime,
+      status: item.gameDetails.status,
+      gameType: item.gameDetails.gameType,
+      rates: item.gameDetails.rates,
+      totalInvested: item.totalInvested // ✅ user’s total money invested
+    }));
+
+    res.status(200).json({
+      success: true,
+      games: gamesWithInvestments
+    });
+  } catch (error) {
+    console.error('Error fetching user regular games:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+});
+
 module.exports = router;
