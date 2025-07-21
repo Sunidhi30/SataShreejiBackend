@@ -1099,5 +1099,57 @@ router.get('/user-gaming-history', authMiddleware, async (req, res) => {
     });
   }
 });
+// ✅ GET /api/games/user-wins
+router.get('/user-wins', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // 📝 Step 1: Find all bets where user has won
+    const winningBets = await Bet.find({
+      user: userId,
+      status: 'won' // or use isWinner: true
+    }).populate('game').lean();
+
+    if (winningBets.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'User has not won in any games yet.',
+        games: []
+      });
+    }
+
+    // 📝 Step 2: Group by game and include bet info
+    const wonGames = winningBets.map(bet => ({
+      gameId: bet.game._id,
+      name: bet.game.name,
+      openTime: bet.game.openTime,
+      closeTime: bet.game.closeTime,
+      resultTime: bet.game.resultTime,
+      gameType: bet.game.gameType,
+      rates: bet.game.rates,
+      betDetails: {
+        betId: bet.betId,
+        session: bet.session,
+        betNumber: bet.betNumber,
+        betAmount: bet.betAmount,
+        betType: bet.betType,
+        winningAmount: bet.winningAmount,
+        resultNumber: bet.resultNumber,
+        wonAt: bet.updatedAt
+      }
+    }));
+
+    res.status(200).json({
+      success: true,
+      games: wonGames
+    });
+  } catch (error) {
+    console.error('Error fetching user won games:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server Error'
+    });
+  }
+});
 
 module.exports = router;
