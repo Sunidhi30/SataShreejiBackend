@@ -1284,10 +1284,10 @@ router.post('/users-withdrawalstesting/:id/approve', adminAuth, async (req, res)
     if (!user) {
       return res.status(404).json({ message: 'User linked to this transaction does not exist' });
     }
-
-    if (transaction.status !== 'admin_pending') {
+    if (transaction.status !== 'pending' && transaction.status !== 'admin_pending') {
       return res.status(400).json({ message: 'Transaction is not pending approval' });
     }
+    
 
     // ✅ Check user balance
     if (user.wallet.balance < transaction.amount) {
