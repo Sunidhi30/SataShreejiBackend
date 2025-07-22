@@ -611,6 +611,7 @@ router.post('/user/play-hardgames', authMiddleware, async (req, res) => {
 
     // Deduct wallet
     user.walletBalance -= betAmount;
+    System
 
     // Prepare the bet
     let status = 'pending';
