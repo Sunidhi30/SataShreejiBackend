@@ -382,9 +382,9 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     openTime.setHours(openHour, openMin, 0, 0);
     closeTime.setHours(closeHour, closeMin, 0, 0);
 
-    if (currentTime < openTime || currentTime > closeTime) {
-      return res.status(400).json({ message: 'Betting is closed for this game' });
-    }
+    // if (currentTime < openTime || currentTime > closeTime) {
+    //   return res.status(400).json({ message: 'Betting is closed for this game' });
+    // }
 
     // ✅ Create bet
     const bet = new Bet({
