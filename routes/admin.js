@@ -1632,4 +1632,17 @@ router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+router.get('/admin/hardgame',  async (req, res) => {
+  try {
+    const hardGames = await HardGame.find().sort({ createdAt: -1 }); // latest first
+    res.status(200).json({
+      message: 'Hard games fetched successfully',
+      hardGames: hardGames
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;
