@@ -190,6 +190,48 @@ router.get('/today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// Get Today's Lucky Number
+router.get('/timings-today-number', authMiddleware, async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // Find the most recent result declared today
+    const todayResult = await Result.findOne({
+      date: { $gte: startOfDay }
+    })
+      .populate('gameId')
+      .sort({ declaredAt: -1 });
+
+    if (!todayResult) {
+      // No result yet: find the next upcoming game's result time
+      const nextGame = await Game.findOne({
+        resultDateTime: { $gte: now },
+        status: 'active'
+      }).sort({ resultDateTime: 1 }); // Nearest upcoming game
+
+      return res.json({
+        message: 'No result declared for today yet',
+        luckyNumber: null,
+        nextResultTime: nextGame ? nextGame.resultDateTime : null,
+        nextGame: nextGame ? nextGame.name : null
+      });
+    }
+
+    // Result is available
+    res.json({
+      message: 'Today\'s lucky number retrieved',
+      luckyNumber: todayResult.openResult || todayResult.closeResult,
+      game: todayResult.gameId.name,
+      declaredAt: todayResult.declaredAt
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get All Games
 router.get('/games', authMiddleware, async (req, res) => {
   try {
