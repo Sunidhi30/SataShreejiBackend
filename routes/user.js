@@ -193,18 +193,36 @@ router.get('/today-number', authMiddleware, async (req, res) => {
 // Get All Games
 router.get('/games', authMiddleware, async (req, res) => {
   try {
-    const games = await Game.find({ status: 'active' })
-      .sort({ createdAt: -1 });
+    const userId = req.user._id; // 👈 get the logged-in user's ID
 
-    const gamesWithStatus = await Promise.all(games.map(async (game) => {
+    // Step 1: Find all active games
+    const games = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
+
+    // Step 2: Filter out games where user has already placed a bet today
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0); // midnight today
+
+    const userBets = await Bet.find({
+      user: userId,
+      betDate: { $gte: startOfDay }
+    }).select('game'); // only get the game IDs the user bet on
+
+    const betGameIds = userBets.map(bet => bet.game.toString()); // array of game IDs user bet on
+
+    const gamesUserNotInvested = games.filter(game => 
+      !betGameIds.includes(game._id.toString())
+    );
+
+    // Step 3: Add open/closed status and total participants
+    const gamesWithStatus = await Promise.all(gamesUserNotInvested.map(async (game) => {
       const currentTime = new Date();
       const openTime = new Date();
       const closeTime = new Date();
-      
-      // Parse time strings (assuming format "HH:MM")
+
+      // Parse open/close time
       const [openHour, openMin] = game.openTime.split(':');
       const [closeHour, closeMin] = game.closeTime.split(':');
-      
+
       openTime.setHours(openHour, openMin, 0, 0);
       closeTime.setHours(closeHour, closeMin, 0, 0);
 
@@ -213,10 +231,9 @@ router.get('/games', authMiddleware, async (req, res) => {
         gameStatus = 'open';
       }
 
-      // Get total participants
-      const totalParticipants = await Bet.countDocuments({ 
+      const totalParticipants = await Bet.countDocuments({
         game: game._id,
-        betDate: { $gte: new Date().setHours(0, 0, 0, 0) }
+        betDate: { $gte: startOfDay }
       });
 
       return {
@@ -231,9 +248,54 @@ router.get('/games', authMiddleware, async (req, res) => {
       games: gamesWithStatus
     });
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// router.get('/games', authMiddleware, async (req, res) => {
+//   try {
+//     const games = await Game.find({ status: 'active' })
+//       .sort({ createdAt: -1 });
+
+//     const gamesWithStatus = await Promise.all(games.map(async (game) => {
+//       const currentTime = new Date();
+//       const openTime = new Date();
+//       const closeTime = new Date();
+      
+//       // Parse time strings (assuming format "HH:MM")
+//       const [openHour, openMin] = game.openTime.split(':');
+//       const [closeHour, closeMin] = game.closeTime.split(':');
+      
+//       openTime.setHours(openHour, openMin, 0, 0);
+//       closeTime.setHours(closeHour, closeMin, 0, 0);
+
+//       let gameStatus = 'closed';
+//       if (currentTime >= openTime && currentTime <= closeTime) {
+//         gameStatus = 'open';
+//       }
+
+//       // Get total participants
+//       const totalParticipants = await Bet.countDocuments({ 
+//         game: game._id,
+//         betDate: { $gte: new Date().setHours(0, 0, 0, 0) }
+//       });
+
+//       return {
+//         ...game.toObject(),
+//         gameStatus,
+//         totalParticipants
+//       };
+//     }));
+
+//     res.json({
+//       message: 'Games retrieved successfully',
+//       games: gamesWithStatus
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 // Get Game Details
 router.get('/games/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -270,7 +332,7 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     const gameId = req.params.gameId;
 
     // ✅ Validate inputs
-    if (!betNumber || !betAmount || !betType || !session || !date) {
+    if (!betNumber || !betAmount || !betType || !session ) {
       return res.status(400).json({ message: 'All fields (including date) are required' });
     }
 

@@ -1556,10 +1556,39 @@ router.delete('/notices/:id', adminAuth, async (req, res) => {
   }
 });
 // Admin creates a new Hard Game session
+// router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
+//   try {
+//     const { gameName, nextResultTime } = req.body;
+
+//     const newHardGame = new HardGame({
+//       gameName,
+//       nextResultTime
+//     });
+
+//     await newHardGame.save();
+
+//     res.status(201).json({
+//       message: 'Hard game created successfully',
+//       hardGame: newHardGame
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
   try {
     const { gameName, nextResultTime } = req.body;
 
+    // ✅ Check if there is already a HardGame in the database
+    const existingGameCount = await HardGame.countDocuments();
+    if (existingGameCount >= 1) {
+      return res.status(400).json({
+        message: 'Only one Hard game is allowed at a time. Delete the existing one before creating a new one.'
+      });
+    }
+
+    // ✅ Create new HardGame
     const newHardGame = new HardGame({
       gameName,
       nextResultTime
@@ -1576,6 +1605,7 @@ router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 // Admin declares result for Hard Game
 router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
   try {
@@ -1646,3 +1676,6 @@ router.get('/admin/hardgame',  async (req, res) => {
 });
 
 module.exports = router;
+
+
+
