@@ -23,12 +23,14 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const walletRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
-
+const spinner = require("./routes/spinnerGame")
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/spinner', spinner);
+
 
 const PORT = process.env.PORT || 9000;
 app.listen(PORT, () => {
@@ -36,4 +38,7 @@ app.listen(PORT, () => {
 });
 app.get("/testing", (req, res) => {
   res.sendFile(__dirname + "/testingpayement.html");
+})
+app.get("/Spinner", (req, res) => {
+  res.sendFile(__dirname + "/Spinner.html");
 })

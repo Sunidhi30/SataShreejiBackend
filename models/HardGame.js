@@ -40,6 +40,11 @@ const hardGameSchema = new mongoose.Schema({
   gameDate: {
     type: Date,
     default: Date.now
+  },
+   // Add this field to store the interval in minutes
+   resultInterval: {
+    type: Number,
+    required: true // Time in minutes after user plays
   }
 }, {
   timestamps: true
