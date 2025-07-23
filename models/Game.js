@@ -52,6 +52,7 @@
 // });
 
 // module.exports = mongoose.model('Game', gameSchema);
+
 const mongoose = require('mongoose');
 
 const gameSchema = new mongoose.Schema({

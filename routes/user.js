@@ -193,7 +193,7 @@ router.get('/today-number', authMiddleware, async (req, res) => {
 // Get All Games
 router.get('/games', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user._id; // 👈 get the logged-in user's ID
+    const userId = req.user._id; // 👈 Get the logged-in user's ID
 
     // Step 1: Find all active games
     const games = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
@@ -209,39 +209,36 @@ router.get('/games', authMiddleware, async (req, res) => {
 
     const betGameIds = userBets.map(bet => bet.game.toString()); // array of game IDs user bet on
 
-    const gamesUserNotInvested = games.filter(game => 
+    const gamesUserNotInvested = games.filter(game =>
       !betGameIds.includes(game._id.toString())
     );
 
     // Step 3: Add open/closed status and total participants
-    const gamesWithStatus = await Promise.all(gamesUserNotInvested.map(async (game) => {
-      const currentTime = new Date();
-      const openTime = new Date();
-      const closeTime = new Date();
+    const gamesWithStatus = await Promise.all(
+      gamesUserNotInvested.map(async (game) => {
+        const currentTime = new Date();
 
-      // Parse open/close time
-      const [openHour, openMin] = game.openTime.split(':');
-      const [closeHour, closeMin] = game.closeTime.split(':');
+        // Directly use openDateTime and closeDateTime
+        const openTime = new Date(game.openDateTime);
+        const closeTime = new Date(game.closeDateTime);
 
-      openTime.setHours(openHour, openMin, 0, 0);
-      closeTime.setHours(closeHour, closeMin, 0, 0);
+        let gameStatus = 'closed';
+        if (currentTime >= openTime && currentTime <= closeTime) {
+          gameStatus = 'open';
+        }
 
-      let gameStatus = 'closed';
-      if (currentTime >= openTime && currentTime <= closeTime) {
-        gameStatus = 'open';
-      }
+        const totalParticipants = await Bet.countDocuments({
+          game: game._id,
+          betDate: { $gte: startOfDay }
+        });
 
-      const totalParticipants = await Bet.countDocuments({
-        game: game._id,
-        betDate: { $gte: startOfDay }
-      });
-
-      return {
-        ...game.toObject(),
-        gameStatus,
-        totalParticipants
-      };
-    }));
+        return {
+          ...game.toObject(),
+          gameStatus,
+          totalParticipants
+        };
+      })
+    );
 
     res.json({
       message: 'Games retrieved successfully',
@@ -252,6 +249,7 @@ router.get('/games', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 
 // router.get('/games', authMiddleware, async (req, res) => {
 //   try {
