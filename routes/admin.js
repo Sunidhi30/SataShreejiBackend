@@ -443,17 +443,23 @@ router.get('/games', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// Add new game
+// // Add new game
 router.post('/games', adminAuth, async (req, res) => {
   try {
-    const { name, type, openTime, closeTime, resultTime, status } = req.body;
-    
+    const { name, gameType, openDateTime, closeDateTime, resultDateTime, status } = req.body;
+
+    // Check if game name already exists
+    const existingGame = await Game.findOne({ name });
+    if (existingGame) {
+      return res.status(400).json({ message: 'Game name already exists' });
+    }
+
     const game = new Game({
       name,
-      type,
-      openTime,
-      closeTime,
-      resultTime,
+      gameType,
+      openDateTime: new Date(openDateTime), // parse to Date
+      closeDateTime: new Date(closeDateTime),
+      resultDateTime: new Date(resultDateTime),
       status
     });
 
@@ -465,12 +471,38 @@ router.post('/games', adminAuth, async (req, res) => {
       game
     });
   } catch (error) {
-    if (error.code === 11000) {
-      return res.status(400).json({ message: 'Game name already exists' });
-    }
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// router.post('/games', adminAuth, async (req, res) => {
+//   try {
+//     const { name, type, openTime, closeTime, resultTime, status } = req.body;
+    
+//     const game = new Game({
+//       name,
+//       type,
+//       openTime,
+//       closeTime,
+//       resultTime,
+//       status
+//     });
+
+//     await game.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Game added successfully',
+//       game
+//     });
+//   } catch (error) {
+//     if (error.code === 11000) {
+//       return res.status(400).json({ message: 'Game name already exists' });
+//     }
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 // Update game
 router.put('/games/:id', adminAuth, async (req, res) => {
   try {
