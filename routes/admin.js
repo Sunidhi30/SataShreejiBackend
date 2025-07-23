@@ -457,9 +457,9 @@ router.post('/games', adminAuth, async (req, res) => {
     const game = new Game({
       name,
       gameType,
-      openDateTime: new Date(openDateTime), // parse to Date
-      closeDateTime: new Date(closeDateTime),
-      resultDateTime: new Date(resultDateTime),
+      openDateTime, // parse to Date
+      closeDateTime,
+      resultDateTime,
       status
     });
 

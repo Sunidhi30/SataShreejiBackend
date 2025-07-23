@@ -16,6 +16,7 @@ const upload= require("../utils/upload")
 const cloudinary = require("../utils/cloudinary")
 const mongoose = require('mongoose');
 const Notice = require("../models/Notice")
+const moment = require('moment-timezone');
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -366,98 +367,140 @@ router.get('/games/:gameId', authMiddleware, async (req, res) => {
   }
 });
 // Place Bet on Number Game
+
 router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
   try {
-    const { betNumber, betAmount, betType, session, date } = req.body; // 🆕 Accept date
-    const gameId = req.params.gameId;
+    const { gameId } = req.params;
+    const { betNumber, betAmount, betType, session, date } = req.body;
 
-    // ✅ Validate inputs
-    if (!betNumber || !betAmount || !betType || !session || !date) {
-      return res.status(400).json({ message: 'All fields (including date) are required' });
-    }
-
-    if (betAmount < 1) {
-      return res.status(400).json({ message: 'Minimum bet amount is 1' });
-    }
-
-    // ✅ Check if user has sufficient balance
-    if (req.user.wallet.balance < betAmount) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    }
-
-    // ✅ Check if game exists and is active
     const game = await Game.findById(gameId);
-    if (!game || game.status !== 'active') {
-      return res.status(400).json({ message: 'Game not available' });
+    if (!game) {
+      return res.status(404).json({ message: "Game not found" });
     }
 
-    // ✅ Use game.openDateTime and game.closeDateTime directly
-    const openTime = new Date(game.openDateTime);
-    const closeTime = new Date(game.closeDateTime);
-    const currentTime = new Date();
+    // Convert current time to IST
+    const currentIST = moment().tz("Asia/Kolkata");
 
-    const selectedDate = new Date(date); // Convert date string to Date object
+    // Convert game open/close time to IST
+    const openTimeIST = moment(game.openDateTime).tz("Asia/Kolkata");
+    const closeTimeIST = moment(game.closeDateTime).tz("Asia/Kolkata");
 
-    // ✅ Validate that selected time is within open/close window
-    if (currentTime < openTime || currentTime > closeTime) {
-      return res.status(400).json({
-        message: `Betting is closed for this game. You can bet between ${openTime.toLocaleString()} and ${closeTime.toLocaleString()}`
-      });
+    if (currentIST.isBefore(openTimeIST) || currentIST.isAfter(closeTimeIST)) {
+      return res.status(400).json({ message: "Cannot place bet in the past" });
     }
 
-    if (selectedDate < currentTime) {
-      return res.status(400).json({ message: 'Cannot place bets in the past' });
-    }
-
-    // ✅ Create bet
+    // Place the bet
     const bet = new Bet({
-      user: req.user._id,
-      game: gameId,
-      gameType: 'regular',
-      session,
+      game: game._id,            // ✅ correct
+      user: req.user._id,        // ✅ correct
+      gameType: game.gameType,   // ✅ use from Game document
       betNumber,
       betAmount,
       betType,
-      betDate: selectedDate // 🆕 Save date with the bet
+      session,
+      date: currentIST.toDate()
     });
 
     await bet.save();
-
-    // ✅ Deduct amount from user wallet
-    await User.findByIdAndUpdate(req.user._id, {
-      $inc: { 'wallet.balance': -betAmount }
-    });
-
-    // ✅ Add amount to admin earnings
-    await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
-
-    // ✅ Create transaction record
-    await new Transaction({
-      user: req.user._id,
-      type: 'bet',
-      amount: betAmount,
-      status: 'completed',
-      paymentMethod: 'wallet',
-      description: `Bet placed on ${game.name} - Number ${betNumber} for ${selectedDate.toDateString()}`
-    }).save();
-
-    // ✅ Respond with success and betId
-    res.json({
-      message: 'Bet placed successfully',
-      bet: {
-        betId: bet.betId, // ✅ Return betId
-        betNumber,
-        betAmount,
-        betType,
-        session,
-        date: selectedDate
-      }
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    return res.status(200).json({ success: true, message: "Bet placed successfully", bet });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 });
+
+// router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
+//   try {
+//     const { betNumber, betAmount, betType, session, date } = req.body; // 🆕 Accept date
+//     const gameId = req.params.gameId;
+
+//     // ✅ Validate inputs
+//     if (!betNumber || !betAmount || !betType || !session || !date) {
+//       return res.status(400).json({ message: 'All fields (including date) are required' });
+//     }
+
+//     if (betAmount < 1) {
+//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
+//     }
+
+//     // ✅ Check if user has sufficient balance
+//     if (req.user.wallet.balance < betAmount) {
+//       return res.status(400).json({ message: 'Insufficient balance' });
+//     }
+
+//     // ✅ Check if game exists and is active
+//     const game = await Game.findById(gameId);
+//     if (!game || game.status !== 'active') {
+//       return res.status(400).json({ message: 'Game not available' });
+//     }
+
+//     // ✅ Use game.openDateTime and game.closeDateTime directly
+//     const openTime = new Date(game.openDateTime);
+//     const closeTime = new Date(game.closeDateTime);
+//     const currentTime = new Date();
+
+//     const selectedDate = new Date(date); // Convert date string to Date object
+
+//     // ✅ Validate that selected time is within open/close window
+//     if (currentTime < openTime || currentTime > closeTime) {
+//       return res.status(400).json({
+//         message: `Betting is closed for this game. You can bet between ${openTime.toLocaleString()} and ${closeTime.toLocaleString()}`
+//       });
+//     }
+
+//     if (selectedDate < currentTime) {
+//       return res.status(400).json({ message: 'Cannot place bets in the past' });
+//     }
+
+//     // ✅ Create bet
+//     const bet = new Bet({
+//       user: req.user._id,
+//       game: gameId,
+//       gameType: 'regular',
+//       session,
+//       betNumber,
+//       betAmount,
+//       betType,
+//       betDate: selectedDate // 🆕 Save date with the bet
+//     });
+
+//     await bet.save();
+
+//     // ✅ Deduct amount from user wallet
+//     await User.findByIdAndUpdate(req.user._id, {
+//       $inc: { 'wallet.balance': -betAmount }
+//     });
+
+//     // ✅ Add amount to admin earnings
+//     await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
+
+//     // ✅ Create transaction record
+//     await new Transaction({
+//       user: req.user._id,
+//       type: 'bet',
+//       amount: betAmount,
+//       status: 'completed',
+//       paymentMethod: 'wallet',
+//       description: `Bet placed on ${game.name} - Number ${betNumber} for ${selectedDate.toDateString()}`
+//     }).save();
+
+//     // ✅ Respond with success and betId
+//     res.json({
+//       message: 'Bet placed successfully',
+//       bet: {
+//         betId: bet.betId, // ✅ Return betId
+//         betNumber,
+//         betAmount,
+//         betType,
+//         session,
+//         date: selectedDate
+//       }
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 
 // router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 //   try {
