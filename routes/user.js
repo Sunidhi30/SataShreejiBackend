@@ -372,7 +372,7 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     const gameId = req.params.gameId;
 
     // ✅ Validate inputs
-    if (!betNumber || !betAmount || !betType || !session ) {
+    if (!betNumber || !betAmount || !betType || !session || !date) {
       return res.status(400).json({ message: 'All fields (including date) are required' });
     }
 
@@ -391,23 +391,17 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
       return res.status(400).json({ message: 'Game not available' });
     }
 
-    // ✅ Combine selected date with game open/close times
-    const selectedDate = new Date(date); // 🆕 Convert date string to Date object
-    const openTime = new Date(selectedDate);
-    const closeTime = new Date(selectedDate);
+    // ✅ Use game.openDateTime and game.closeDateTime directly
+    const openTime = new Date(game.openDateTime);
+    const closeTime = new Date(game.closeDateTime);
+    const currentTime = new Date();
 
-    const [openHour, openMin] = game.openTime.split(':');
-    const [closeHour, closeMin] = game.closeTime.split(':');
-
-    openTime.setHours(openHour, openMin, 0, 0);
-    closeTime.setHours(closeHour, closeMin, 0, 0);
-
-    const currentTime = new Date(); // current server time
+    const selectedDate = new Date(date); // Convert date string to Date object
 
     // ✅ Validate that selected time is within open/close window
-    if (selectedDate < openTime || selectedDate > closeTime) {
+    if (currentTime < openTime || currentTime > closeTime) {
       return res.status(400).json({
-        message: `Betting is closed for ${selectedDate.toDateString()}. You can bet between ${game.openTime} and ${game.closeTime}`
+        message: `Betting is closed for this game. You can bet between ${openTime.toLocaleString()} and ${closeTime.toLocaleString()}`
       });
     }
 
@@ -424,7 +418,7 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
       betNumber,
       betAmount,
       betType,
-      date: selectedDate // 🆕 Save date with the bet
+      betDate: selectedDate // 🆕 Save date with the bet
     });
 
     await bet.save();
@@ -464,6 +458,105 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
+//   try {
+//     const { betNumber, betAmount, betType, session, date } = req.body; // 🆕 Accept date
+//     const gameId = req.params.gameId;
+
+//     // ✅ Validate inputs
+//     if (!betNumber || !betAmount || !betType || !session ) {
+//       return res.status(400).json({ message: 'All fields (including date) are required' });
+//     }
+
+//     if (betAmount < 1) {
+//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
+//     }
+
+//     // ✅ Check if user has sufficient balance
+//     if (req.user.wallet.balance < betAmount) {
+//       return res.status(400).json({ message: 'Insufficient balance' });
+//     }
+
+//     // ✅ Check if game exists and is active
+//     const game = await Game.findById(gameId);
+//     if (!game || game.status !== 'active') {
+//       return res.status(400).json({ message: 'Game not available' });
+//     }
+
+//     // ✅ Combine selected date with game open/close times
+//     const selectedDate = new Date(date); // 🆕 Convert date string to Date object
+//     const openTime = new Date(selectedDate);
+//     const closeTime = new Date(selectedDate);
+
+//     const [openHour, openMin] = game.openTime.split(':');
+//     const [closeHour, closeMin] = game.closeTime.split(':');
+
+//     openTime.setHours(openHour, openMin, 0, 0);
+//     closeTime.setHours(closeHour, closeMin, 0, 0);
+
+//     const currentTime = new Date(); // current server time
+
+//     // ✅ Validate that selected time is within open/close window
+//     if (selectedDate < openTime || selectedDate > closeTime) {
+//       return res.status(400).json({
+//         message: `Betting is closed for ${selectedDate.toDateString()}. You can bet between ${game.openTime} and ${game.closeTime}`
+//       });
+//     }
+
+//     if (selectedDate < currentTime) {
+//       return res.status(400).json({ message: 'Cannot place bets in the past' });
+//     }
+
+//     // ✅ Create bet
+//     const bet = new Bet({
+//       user: req.user._id,
+//       game: gameId,
+//       gameType: 'regular',
+//       session,
+//       betNumber,
+//       betAmount,
+//       betType,
+//       date: selectedDate // 🆕 Save date with the bet
+//     });
+
+//     await bet.save();
+
+//     // ✅ Deduct amount from user wallet
+//     await User.findByIdAndUpdate(req.user._id, {
+//       $inc: { 'wallet.balance': -betAmount }
+//     });
+
+//     // ✅ Add amount to admin earnings
+//     await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
+
+//     // ✅ Create transaction record
+//     await new Transaction({
+//       user: req.user._id,
+//       type: 'bet',
+//       amount: betAmount,
+//       status: 'completed',
+//       paymentMethod: 'wallet',
+//       description: `Bet placed on ${game.name} - Number ${betNumber} for ${selectedDate.toDateString()}`
+//     }).save();
+
+//     // ✅ Respond with success and betId
+//     res.json({
+//       message: 'Bet placed successfully',
+//       bet: {
+//         betId: bet.betId, // ✅ Return betId
+//         betNumber,
+//         betAmount,
+//         betType,
+//         session,
+//         date: selectedDate
+//       }
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 
 // router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 //   try {
