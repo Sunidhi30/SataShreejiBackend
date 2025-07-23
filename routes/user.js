@@ -399,7 +399,7 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     const selectedDate = new Date(date); // Convert date string to Date object
 
     // ✅ Validate that selected time is within open/close window
-    if (currentTime > closeTime) {
+    if (currentTime < openTime || currentTime > closeTime) {
       return res.status(400).json({
         message: `Betting is closed for this game. You can bet between ${openTime.toLocaleString()} and ${closeTime.toLocaleString()}`
       });
