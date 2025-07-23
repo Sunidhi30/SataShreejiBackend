@@ -232,47 +232,27 @@ router.get('/timings-today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-// Get All Games
 router.get('/games', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user._id; // 👈 Get the logged-in user's ID
+    const userId = req.user._id; // ✅ Get logged-in user
 
-    // Step 1: Find all active games
-    const games = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
+    // 🔥 Step 1: Get all active games
+    const activeGames = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
 
-    // Step 2: Filter out games where user has already placed a bet today
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0); // midnight today
+    // 🔥 Step 2: Add game status (open/closed) and participant count
+    const enrichedGames = await Promise.all(
+      activeGames.map(async (game) => {
+        const now = new Date();
 
-    const userBets = await Bet.find({
-      user: userId,
-      betDate: { $gte: startOfDay }
-    }).select('game'); // only get the game IDs the user bet on
+        const isOpen = now >= game.openDateTime && now <= game.closeDateTime;
+        const gameStatus = isOpen ? 'open' : 'closed';
 
-    const betGameIds = userBets.map(bet => bet.game.toString()); // array of game IDs user bet on
-
-    const gamesUserNotInvested = games.filter(game =>
-      !betGameIds.includes(game._id.toString())
-    );
-
-    // Step 3: Add open/closed status and total participants
-    const gamesWithStatus = await Promise.all(
-      gamesUserNotInvested.map(async (game) => {
-        const currentTime = new Date();
-
-        // Directly use openDateTime and closeDateTime
-        const openTime = new Date(game.openDateTime);
-        const closeTime = new Date(game.closeDateTime);
-
-        let gameStatus = 'closed';
-        if (currentTime >= openTime && currentTime <= closeTime) {
-          gameStatus = 'open';
-        }
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0); // midnight today
 
         const totalParticipants = await Bet.countDocuments({
           game: game._id,
-          betDate: { $gte: startOfDay }
+          betDate: { $gte: startOfDay } // only today's participants
         });
 
         return {
@@ -283,9 +263,10 @@ router.get('/games', authMiddleware, async (req, res) => {
       })
     );
 
+    // ✅ Send response
     res.json({
       message: 'Games retrieved successfully',
-      games: gamesWithStatus
+      games: enrichedGames
     });
   } catch (error) {
     console.error(error);
@@ -293,50 +274,66 @@ router.get('/games', authMiddleware, async (req, res) => {
   }
 });
 
-
+// // Get All Games
 // router.get('/games', authMiddleware, async (req, res) => {
 //   try {
-//     const games = await Game.find({ status: 'active' })
-//       .sort({ createdAt: -1 });
+//     const userId = req.user._id; // 👈 Get the logged-in user's ID
 
-//     const gamesWithStatus = await Promise.all(games.map(async (game) => {
-//       const currentTime = new Date();
-//       const openTime = new Date();
-//       const closeTime = new Date();
-      
-//       // Parse time strings (assuming format "HH:MM")
-//       const [openHour, openMin] = game.openTime.split(':');
-//       const [closeHour, closeMin] = game.closeTime.split(':');
-      
-//       openTime.setHours(openHour, openMin, 0, 0);
-//       closeTime.setHours(closeHour, closeMin, 0, 0);
+//     // Step 1: Find all active games
+//     const games = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
 
-//       let gameStatus = 'closed';
-//       if (currentTime >= openTime && currentTime <= closeTime) {
-//         gameStatus = 'open';
-//       }
+//     // Step 2: Filter out games where user has already placed a bet today
+//     const startOfDay = new Date();
+//     startOfDay.setHours(0, 0, 0, 0); // midnight today
 
-//       // Get total participants
-//       const totalParticipants = await Bet.countDocuments({ 
-//         game: game._id,
-//         betDate: { $gte: new Date().setHours(0, 0, 0, 0) }
-//       });
+//     const userBets = await Bet.find({
+//       user: userId,
+//       betDate: { $gte: startOfDay }
+//     }).select('game'); // only get the game IDs the user bet on
 
-//       return {
-//         ...game.toObject(),
-//         gameStatus,
-//         totalParticipants
-//       };
-//     }));
+//     const betGameIds = userBets.map(bet => bet.game.toString()); // array of game IDs user bet on
+
+//     const gamesUserNotInvested = games.filter(game =>
+//       !betGameIds.includes(game._id.toString())
+//     );
+
+//     // Step 3: Add open/closed status and total participants
+//     const gamesWithStatus = await Promise.all(
+//       gamesUserNotInvested.map(async (game) => {
+//         const currentTime = new Date();
+
+//         // Directly use openDateTime and closeDateTime
+//         const openTime = new Date(game.openDateTime);
+//         const closeTime = new Date(game.closeDateTime);
+
+//         let gameStatus = 'closed';
+//         if (currentTime >= openTime && currentTime <= closeTime) {
+//           gameStatus = 'open';
+//         }
+
+//         const totalParticipants = await Bet.countDocuments({
+//           game: game._id,
+//           betDate: { $gte: startOfDay }
+//         });
+
+//         return {
+//           ...game.toObject(),
+//           gameStatus,
+//           totalParticipants
+//         };
+//       })
+//     );
 
 //     res.json({
 //       message: 'Games retrieved successfully',
 //       games: gamesWithStatus
 //     });
 //   } catch (error) {
+//     console.error(error);
 //     res.status(500).json({ message: 'Server error', error: error.message });
 //   }
 // });
+
 // Get Game Details
 router.get('/games/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -367,411 +364,255 @@ router.get('/games/:gameId', authMiddleware, async (req, res) => {
   }
 });
 // Place Bet on Number Game
-
+// Updated Betting Route
 router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
   try {
     const { gameId } = req.params;
-    const { betNumber, betAmount, betType, session, date } = req.body;
+    const { betNumber, betAmount, date } = req.body;
 
+    // ✅ Validate inputs
+    if (typeof betNumber !== 'number' || typeof betAmount !== 'number' || betAmount <= 0) {
+      return res.status(400).json({ message: "Invalid betNumber or betAmount" });
+    }
+    if (!date) {
+      return res.status(400).json({ message: "Bet date is required" });
+    }
+
+    // 🕑 Convert user's date to IST
+    const userBetDateUTC = new Date(date);
+    if (isNaN(userBetDateUTC.getTime())) {
+      return res.status(400).json({ message: "Invalid date format" });
+    }
+    const userBetDateIST = moment(userBetDateUTC).tz("Asia/Kolkata");
+
+    // ✅ Fetch game
     const game = await Game.findById(gameId);
     if (!game) {
       return res.status(404).json({ message: "Game not found" });
     }
 
-    // Convert current time to IST
-    const currentIST = moment().tz("Asia/Kolkata");
-
-    // Convert game open/close time to IST
     const openTimeIST = moment(game.openDateTime).tz("Asia/Kolkata");
     const closeTimeIST = moment(game.closeDateTime).tz("Asia/Kolkata");
 
-    if (currentIST.isBefore(openTimeIST) || currentIST.isAfter(closeTimeIST)) {
-      return res.status(400).json({ message: "Cannot place bet in the past" });
+    // ✅ Check bet timing
+    if (userBetDateIST.isBefore(openTimeIST)) {
+      return res.status(400).json({
+        message: "Betting has not opened yet for this game",
+        gameOpenTime: openTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+        userTime: userBetDateIST.format("YYYY-MM-DD HH:mm:ss")
+      });
+    }
+    if (userBetDateIST.isAfter(closeTimeIST)) {
+      return res.status(400).json({
+        message: "Betting has already closed for this game",
+        gameCloseTime: closeTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+        userTime: userBetDateIST.format("YYYY-MM-DD HH:mm:ss")
+      });
     }
 
-    // Place the bet
-    const bet = new Bet({
-      game: game._id,            // ✅ correct
-      user: req.user._id,        // ✅ correct
-      gameType: game.gameType,   // ✅ use from Game document
-      betNumber,
-      betAmount,
-      betType:'single',
-      session,
-      date: currentIST.toDate()
-    });
+    // ✅ Fetch user
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    await bet.save();
-    return res.status(200).json({ success: true, message: "Bet placed successfully", bet });
+    // ✅ Check wallet balance
+    if (user.wallet.balance < betAmount) {
+      return res.status(400).json({ message: "Insufficient wallet balance" });
+    }
+
+    // ✅ Deduct wallet balance
+    user.wallet.balance -= betAmount;
+    await user.save();
+
+    // ✅ Check if user already has a bet for this game
+    let bet = await Bet.findOne({ user: user._id, game: game._id });
+    
+    if (bet) {
+      // 🟢 User has existing bets for this game
+      const existingBetIndex = bet.betNumbers.findIndex(b => b.number === betNumber);
+      
+      if (existingBetIndex !== -1) {
+        // 📈 Same number - add to existing amount
+        bet.betNumbers[existingBetIndex].amount += betAmount;
+      } else {
+        // 🆕 New number - add to betNumbers array
+        bet.betNumbers.push({
+          number: betNumber,
+          amount: betAmount
+        });
+      }
+      
+      await bet.save();
+    } else {
+      // 🆕 Create new bet with first number
+      bet = new Bet({
+        user: user._id,
+        game: game._id,
+        betNumbers: [{
+          number: betNumber,
+          amount: betAmount
+        }],
+        gameType: 'regular',
+        betDate: userBetDateUTC
+      });
+      await bet.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Bet placed successfully",
+      betDetails: {
+        betId: bet.betId,
+        betNumbers: bet.betNumbers,
+        totalBetAmount: bet.totalBetAmount
+      },
+      walletBalance: user.wallet.balance,
+      userBetTimeIST: userBetDateIST.format("YYYY-MM-DD HH:mm:ss"),
+      gameOpenTimeIST: openTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+      gameCloseTimeIST: closeTimeIST.format("YYYY-MM-DD HH:mm:ss")
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
+// Get User's Bet History for a Game
+router.get('/games/:gameId/my-bets', authMiddleware, async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    
+    const bet = await Bet.findOne({ 
+      user: req.user._id, 
+      game: gameId 
+    }).populate('game', 'name status currentResult');
+    
+    if (!bet) {
+      return res.status(404).json({ message: "No bets found for this game" });
+    }
+    
+    return res.status(200).json({
+      success: true,
+      bet: {
+        betId: bet.betId,
+        betNumbers: bet.betNumbers,
+        totalBetAmount: bet.totalBetAmount,
+        status: bet.status,
+        winningAmount: bet.winningAmount,
+        winningNumbers: bet.winningNumbers,
+        game: bet.game
+      }
+    });
+    
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
+});
 // router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 //   try {
-//     const { betNumber, betAmount, betType, session, date } = req.body; // 🆕 Accept date
-//     const gameId = req.params.gameId;
+//     const { gameId } = req.params;
+//     const { betNumber, betAmount, date } = req.body;
 
 //     // ✅ Validate inputs
-//     if (!betNumber || !betAmount || !betType || !session || !date) {
-//       return res.status(400).json({ message: 'All fields (including date) are required' });
+//     if (typeof betNumber !== 'number' || typeof betAmount !== 'number' || betAmount <= 0) {
+//       return res.status(400).json({ message: "Invalid betNumber or betAmount" });
+//     }
+//     if (!date) {
+//       return res.status(400).json({ message: "Bet date is required" });
 //     }
 
-//     if (betAmount < 1) {
-//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
+//     // 🕑 Convert user's date to IST
+//     const userBetDateUTC = new Date(date);
+//     if (isNaN(userBetDateUTC.getTime())) {
+//       return res.status(400).json({ message: "Invalid date format" });
 //     }
+//     const userBetDateIST = moment(userBetDateUTC).tz("Asia/Kolkata");
 
-//     // ✅ Check if user has sufficient balance
-//     if (req.user.wallet.balance < betAmount) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // ✅ Check if game exists and is active
+//     // ✅ Fetch game
 //     const game = await Game.findById(gameId);
-//     if (!game || game.status !== 'active') {
-//       return res.status(400).json({ message: 'Game not available' });
+//     if (!game) {
+//       return res.status(404).json({ message: "Game not found" });
 //     }
 
-//     // ✅ Use game.openDateTime and game.closeDateTime directly
-//     const openTime = new Date(game.openDateTime);
-//     const closeTime = new Date(game.closeDateTime);
-//     const currentTime = new Date();
+//     const openTimeIST = moment(game.openDateTime).tz("Asia/Kolkata");
+//     const closeTimeIST = moment(game.closeDateTime).tz("Asia/Kolkata");
 
-//     const selectedDate = new Date(date); // Convert date string to Date object
-
-//     // ✅ Validate that selected time is within open/close window
-//     if (currentTime < openTime || currentTime > closeTime) {
+//     // ✅ Check bet timing
+//     if (userBetDateIST.isBefore(openTimeIST)) {
 //       return res.status(400).json({
-//         message: `Betting is closed for this game. You can bet between ${openTime.toLocaleString()} and ${closeTime.toLocaleString()}`
+//         message: "Betting has not opened yet for this game",
+//         gameOpenTime: openTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+//         userTime: userBetDateIST.format("YYYY-MM-DD HH:mm:ss")
+//       });
+//     }
+//     if (userBetDateIST.isAfter(closeTimeIST)) {
+//       return res.status(400).json({
+//         message: "Betting has already closed for this game",
+//         gameCloseTime: closeTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+//         userTime: userBetDateIST.format("YYYY-MM-DD HH:mm:ss")
 //       });
 //     }
 
-//     if (selectedDate < currentTime) {
-//       return res.status(400).json({ message: 'Cannot place bets in the past' });
+//     // ✅ Fetch user
+//     const user = await User.findById(req.user._id);
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" });
 //     }
 
-//     // ✅ Create bet
-//     const bet = new Bet({
-//       user: req.user._id,
-//       game: gameId,
-//       gameType: 'regular',
-//       session,
-//       betNumber,
-//       betAmount,
-//       betType,
-//       betDate: selectedDate // 🆕 Save date with the bet
-//     });
+//     // ✅ Check wallet balance
+//     if (user.wallet.balance < betAmount) {
+//       return res.status(400).json({ message: "Insufficient wallet balance" });
+//     }
 
-//     await bet.save();
+//     // ✅ Deduct wallet balance
+//     user.wallet.balance -= betAmount;
+//     await user.save();
 
-//     // ✅ Deduct amount from user wallet
-//     await User.findByIdAndUpdate(req.user._id, {
-//       $inc: { 'wallet.balance': -betAmount }
-//     });
-
-//     // ✅ Add amount to admin earnings
-//     await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
-
-//     // ✅ Create transaction record
-//     await new Transaction({
-//       user: req.user._id,
-//       type: 'bet',
-//       amount: betAmount,
-//       status: 'completed',
-//       paymentMethod: 'wallet',
-//       description: `Bet placed on ${game.name} - Number ${betNumber} for ${selectedDate.toDateString()}`
-//     }).save();
-
-//     // ✅ Respond with success and betId
-//     res.json({
-//       message: 'Bet placed successfully',
-//       bet: {
-//         betId: bet.betId, // ✅ Return betId
+//     // ✅ Check if user already has a bet for this game
+//     let bet = await Bet.findOne({ user: user._id, game: game._id });
+//     if (bet) {
+//       // 🟢 Check if betNumber is different
+//       if (bet.betNumber !== betNumber) {
+//         // Save previous number to history
+//         if (!bet.betNumbersHistory.includes(bet.betNumber)) {
+//           bet.betNumbersHistory.push(bet.betNumber);
+//         }
+//         // Update betNumber
+//         bet.betNumber = betNumber;
+//       }
+//       // Increment betAmount
+//       bet.betAmount += betAmount;
+//       await bet.save();
+//     } else {
+//       // 🆕 Create new bet
+//       bet = new Bet({
+//         user: user._id,
+//         game: game._id,
 //         betNumber,
 //         betAmount,
-//         betType,
-//         session,
-//         date: selectedDate
-//       }
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-
-// router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
-//   try {
-//     const { betNumber, betAmount, betType, session, date } = req.body; // 🆕 Accept date
-//     const gameId = req.params.gameId;
-
-//     // ✅ Validate inputs
-//     if (!betNumber || !betAmount || !betType || !session ) {
-//       return res.status(400).json({ message: 'All fields (including date) are required' });
-//     }
-
-//     if (betAmount < 1) {
-//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
-//     }
-
-//     // ✅ Check if user has sufficient balance
-//     if (req.user.wallet.balance < betAmount) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // ✅ Check if game exists and is active
-//     const game = await Game.findById(gameId);
-//     if (!game || game.status !== 'active') {
-//       return res.status(400).json({ message: 'Game not available' });
-//     }
-
-//     // ✅ Combine selected date with game open/close times
-//     const selectedDate = new Date(date); // 🆕 Convert date string to Date object
-//     const openTime = new Date(selectedDate);
-//     const closeTime = new Date(selectedDate);
-
-//     const [openHour, openMin] = game.openTime.split(':');
-//     const [closeHour, closeMin] = game.closeTime.split(':');
-
-//     openTime.setHours(openHour, openMin, 0, 0);
-//     closeTime.setHours(closeHour, closeMin, 0, 0);
-
-//     const currentTime = new Date(); // current server time
-
-//     // ✅ Validate that selected time is within open/close window
-//     if (selectedDate < openTime || selectedDate > closeTime) {
-//       return res.status(400).json({
-//         message: `Betting is closed for ${selectedDate.toDateString()}. You can bet between ${game.openTime} and ${game.closeTime}`
+//         gameType: 'regular', // Default for now
+//         betDate: userBetDateUTC
 //       });
+//       await bet.save();
 //     }
 
-//     if (selectedDate < currentTime) {
-//       return res.status(400).json({ message: 'Cannot place bets in the past' });
-//     }
-
-//     // ✅ Create bet
-//     const bet = new Bet({
-//       user: req.user._id,
-//       game: gameId,
-//       gameType: 'regular',
-//       session,
-//       betNumber,
-//       betAmount,
-//       betType,
-//       date: selectedDate // 🆕 Save date with the bet
+//     return res.status(200).json({
+//       success: true,
+//       message: "Bet placed successfully",
+//       bet,
+//       walletBalance: user.wallet.balance,
+//       userBetTimeIST: userBetDateIST.format("YYYY-MM-DD HH:mm:ss"),
+//       gameOpenTimeIST: openTimeIST.format("YYYY-MM-DD HH:mm:ss"),
+//       gameCloseTimeIST: closeTimeIST.format("YYYY-MM-DD HH:mm:ss")
 //     });
-
-//     await bet.save();
-
-//     // ✅ Deduct amount from user wallet
-//     await User.findByIdAndUpdate(req.user._id, {
-//       $inc: { 'wallet.balance': -betAmount }
-//     });
-
-//     // ✅ Add amount to admin earnings
-//     await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
-
-//     // ✅ Create transaction record
-//     await new Transaction({
-//       user: req.user._id,
-//       type: 'bet',
-//       amount: betAmount,
-//       status: 'completed',
-//       paymentMethod: 'wallet',
-//       description: `Bet placed on ${game.name} - Number ${betNumber} for ${selectedDate.toDateString()}`
-//     }).save();
-
-//     // ✅ Respond with success and betId
-//     res.json({
-//       message: 'Bet placed successfully',
-//       bet: {
-//         betId: bet.betId, // ✅ Return betId
-//         betNumber,
-//         betAmount,
-//         betType,
-//         session,
-//         date: selectedDate
-//       }
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Server error", error: err.message });
 //   }
 // });
 
-// router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
-//   try {
-//     const { betNumber, betAmount, betType, session } = req.body;
-//     const gameId = req.params.gameId;
-
-//     // Validate inputs
-//     if (!betNumber || !betAmount || !betType || !session) {
-//       return res.status(400).json({ message: 'All fields are required' });
-//     }
-
-//     if (betAmount < 1) {
-//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
-//     }
-
-//     // Check if user has sufficient balance
-//     if (req.user.wallet.balance < betAmount) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // Check if game exists and is active
-//     const game = await Game.findById(gameId);
-//     if (!game || game.status !== 'active') {
-//       return res.status(400).json({ message: 'Game not available' });
-//     }
-
-//     // Check if betting is open
-//     const currentTime = new Date();
-//     const openTime = new Date();
-//     const closeTime = new Date();
-    
-//     const [openHour, openMin] = game.openTime.split(':');
-//     const [closeHour, closeMin] = game.closeTime.split(':');
-    
-//     openTime.setHours(openHour, openMin, 0, 0);
-//     closeTime.setHours(closeHour, closeMin, 0, 0);
-
-//     if (currentTime < openTime || currentTime > closeTime) {
-//       return res.status(400).json({ message: 'Betting is closed for this game' });
-//     }
-
-//     // Create bet
-//     const bet = new Bet({
-//       user: req.user._id,
-//       game: gameId,
-//       gameType: 'regular',
-//       session,
-//       betNumber,
-//       betAmount,
-//       betType
-//     });
-
-//     await bet.save();
-
-//     // Deduct amount from user wallet
-//     await User.findByIdAndUpdate(req.user._id, {
-//       $inc: { 'wallet.balance': -betAmount }
-//     });
-
-//     // Create transaction record
-//     await new Transaction({
-//       user: req.user._id,
-//       type: 'bet',
-//       amount: betAmount,
-//       status: 'completed',
-//       paymentMethod: 'wallet',
-//       description: `Bet placed on ${game.name} - Number ${betNumber}`
-//     }).save();
-
-//     res.json({
-//       message: 'Bet placed successfully',
-//       bet: {
-//         betId: bet.betId,
-//         betNumber,
-//         betAmount,
-//         betType,
-//         session
-//       }
-//     });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-// router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
-//   try {
-//     const { betNumber, betAmount, betType, session } = req.body;
-//     const gameId = req.params.gameId;
-
-//     // ✅ Validate inputs
-//     if (!betNumber || !betAmount || !betType || !session) {
-//       return res.status(400).json({ message: 'All fields are required' });
-//     }
-
-//     if (betAmount < 1) {
-//       return res.status(400).json({ message: 'Minimum bet amount is 1' });
-//     }
-
-//     // ✅ Check if user has sufficient balance
-//     if (req.user.wallet.balance < betAmount) {
-//       return res.status(400).json({ message: 'Insufficient balance' });
-//     }
-
-//     // ✅ Check if game exists and is active
-//     const game = await Game.findById(gameId);
-//     if (!game || game.status !== 'active') {
-//       return res.status(400).json({ message: 'Game not available' });
-//     }
-
-//     // ✅ Check if betting is open
-//     const currentTime = new Date();
-//     const openTime = new Date();
-//     const closeTime = new Date();
-
-//     const [openHour, openMin] = game.openTime.split(':');
-//     const [closeHour, closeMin] = game.closeTime.split(':');
-
-//     openTime.setHours(openHour, openMin, 0, 0);
-//     closeTime.setHours(closeHour, closeMin, 0, 0);
-
-//     // if (currentTime < openTime || currentTime > closeTime) {
-//     //   return res.status(400).json({ message: 'Betting is closed for this game' });
-//     // }
-
-//     // ✅ Create bet
-//     const bet = new Bet({
-//       user: req.user._id,
-//       game: gameId,
-//       gameType: 'regular',
-//       session,
-//       betNumber,
-//       betAmount,
-//       betType
-//     });
-
-//     await bet.save();
-
-//     // ✅ Deduct amount from user wallet
-//     await User.findByIdAndUpdate(req.user._id, {
-//       $inc: { 'wallet.balance': -betAmount }
-//     });
-
-//     // ✅ Add amount to admin earnings
-//     await Admin.findOneAndUpdate({}, { $inc: { earnings: betAmount } });
-
-//     // ✅ Create transaction record
-//     await new Transaction({
-//       user: req.user._id,
-//       type: 'bet',
-//       amount: betAmount,
-//       status: 'completed',
-//       paymentMethod: 'wallet',
-//       description: `Bet placed on ${game.name} - Number ${betNumber}`
-//     }).save();
-
-//     // ✅ Respond with success and betId
-//     res.json({
-//       message: 'Bet placed successfully',
-//       bet: {
-//         betId: bet.betId, // ✅ Return betId
-//         betNumber,
-//         betAmount,
-//         betType,
-//         session
-//       }
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-// ==============================================
-// HARD GAME (SPINNER) ROUTES
 // ==============================================
 // Get Hard Game Status
 router.get('/hard-game/status', authMiddleware, async (req, res) => {
@@ -1191,6 +1032,26 @@ router.post('/check-results', authMiddleware, async (req, res) => {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
+// 🪙 GET /api/user/wallet
+router.get('/wallet', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id; // ✅ Get logged-in user ID from auth middleware
+
+    // Find the user by ID
+    const user = await User.findById(userId).select('wallet'); // only get wallet field
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      message: 'Wallet retrieved successfully',
+      wallet: user.wallet
+    });
+  } catch (error) {
+    console.error('Error fetching wallet:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 // POST /wallet/withdraw
 router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
   try {
@@ -1453,4 +1314,5 @@ router.get('/notices', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 module.exports = router;
