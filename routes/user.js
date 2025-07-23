@@ -396,7 +396,7 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
       gameType: game.gameType,   // ✅ use from Game document
       betNumber,
       betAmount,
-      betType,
+      betType:'single',
       session,
       date: currentIST.toDate()
     });
