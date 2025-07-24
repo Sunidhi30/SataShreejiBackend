@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const db = require('./utils/db')
 const app = express();
+const rateLimit = require('express-rate-limit');
+
 // Middleware
 app.use(express.json());
 app.use(cors({
@@ -23,13 +25,25 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const walletRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
-const spinner = require("./routes/spinnerGame")
 // Routes
+// Import routes
+const adminGameRoutes = require('./routes/adminGame');
+const userGameRoutes = require('./routes/UserGame');
+const UserSpinHistory = require('./models/UserSpinHistory'); // Import the new model
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/spinner', spinner);
+// Routes
+app.use('/api/admin/games', adminGameRoutes);
+app.use('/api/games', userGameRoutes);
 
 
 const PORT = process.env.PORT || 9000;

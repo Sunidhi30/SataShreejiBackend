@@ -45,7 +45,17 @@ const hardGameSchema = new mongoose.Schema({
    resultInterval: {
     type: Number,
     required: true // Time in minutes after user plays
-  }
+  },
+  previousResults: [{
+    resultNumber: {
+      type: Number,
+      min: 0,
+      max: 9
+    },
+    resultTime: {
+      type: Date
+    }
+  }]
 }, {
   timestamps: true
 });
