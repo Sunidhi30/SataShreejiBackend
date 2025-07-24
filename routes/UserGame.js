@@ -123,7 +123,6 @@ router.post('/place-bet', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // // Start spinner
 // router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
 //   try {
@@ -276,86 +275,6 @@ router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
-//   try {
-//     const { gameId } = req.params;
-
-//     const game = await SpinnerGame.findById(gameId)
-//       .populate('gameConfigId')
-//       .populate('user', 'username');
-// // ⛔ Add check here
-// const gameConfiged = game.gameConfigId;
-// const now = new Date();
-
-// if (gameConfiged.lastResultTime) {
-//   const nextAllowedTime = new Date(gameConfiged.lastResultTime.getTime() + gameConfiged.resultInterval * 60 * 1000);
-//   if (now < nextAllowedTime) {
-//     return res.status(400).json({
-//       error: 'Spin not allowed yet. Please wait for the current round to end.',
-//       timeRemaining: Math.ceil((nextAllowedTime - now) / 1000)
-//     });
-//   }
-// }
-//     if (!game) {
-//       return res.status(404).json({ error: 'Game not found' });
-//     }
-
-//     if (game.user._id.toString() !== req.user.id) {
-//       return res.status(403).json({ error: 'Unauthorized access' });
-//     }
-
-//     if (game.status !== 'pending') {
-//       return res.status(400).json({ error: 'Game already started or completed' });
-//     }
-
-//     const gameConfig = game.gameConfigId;
-//     let resultNumber;
-
-//     // Get result based on admin settings
-//     if (gameConfig.resultMode === 'admin_controlled') {
-//       // Find next unused result
-//       const nextResult = gameConfig.nextResults.find(result => !result.isUsed);
-      
-//       if (!nextResult) {
-//         // No admin-set results available, fall back to random
-//         resultNumber = Math.floor(Math.random() * 10);
-//       } else {
-//         resultNumber = nextResult.resultNumber;
-        
-//         // Mark this result as used
-//         nextResult.isUsed = true;
-//         nextResult.usedAt = new Date();
-//         await gameConfig.save();
-//       }
-//     } else {
-//       // Random mode
-//       resultNumber = Math.floor(Math.random() * 10);
-//     }
-
-//     // Store the number in user's spin history
-//     await updateUserSpinHistory(req.user.id, game.gameConfigId._id, resultNumber, game._id);
-
-//     // Update game status
-//     game.status = 'spinning';
-//     game.spinStartTime = new Date();
-//     game.resultNumber = resultNumber; // Store the result but don't reveal yet
-//     await game.save();
-
-//     res.json({
-//       success: true,
-//       message: 'Spinner started',
-//       resultNumber, // ✅ Send this to frontend to stop spinner,
-//       gameId: game._id,
-//       spinDuration: 3000, // 3 seconds spinner animation
-//       resultInterval: game.gameConfigId.resultInterval * 60 * 1000 // Convert to milliseconds
-//     });
-
-//   } catch (error) {
-//     res.status(500).json({ error: error.message });
-//   }
-// });
-
 // Helper function to update user spin history
 async function updateUserSpinHistory(userId, gameConfigId, number, gameId) {
   try {
@@ -389,7 +308,6 @@ async function updateUserSpinHistory(userId, gameConfigId, number, gameId) {
     console.error('Error updating user spin history:', error);
   }
 }
-
 // Stop spinner and get result
 router.post('/stop-spin/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -471,8 +389,32 @@ router.post('/stop-spin/:gameId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// GET /api/next-result-times
+router.get('/next-result-times', authMiddleware, async (req, res) => {
+  try {
+    const activeGames = await GameConfig.find({ isActive: true });
 
+    const upcomingResults = activeGames.map(game => {
+      const lastTime = game.lastResultTime || new Date();
+      const nextResultTime = new Date(lastTime.getTime() + game.resultInterval * 60000); // resultInterval is in minutes
 
+      return {
+        gameName: game.gameName,
+        nextResultTime,
+        resultInterval: game.resultInterval,
+        multiplier: game.multiplier,
+        minBet: game.minBet,
+        maxBet: game.maxBet,
+        resultMode: game.resultMode
+      };
+    });
+
+    res.json({ success: true, data: upcomingResults });
+  } catch (error) {
+    console.error('Error fetching next result times:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 // Get game status
 router.get('/status/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -519,7 +461,6 @@ router.get('/status/:gameId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Get user game history
 router.get('/history', authMiddleware, async (req, res) => {
   try {
@@ -561,7 +502,6 @@ router.get('/history', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Get user's spinner number history
 router.get('/spinner-history', authMiddleware, async (req, res) => {
   try {
@@ -636,7 +576,6 @@ router.get('/spinner-history', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 // Get user's number frequency analysis
 router.get('/number-analysis', authMiddleware, async (req, res) => {
   try {
@@ -731,5 +670,4 @@ router.get('/recent-results', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 module.exports = router;
