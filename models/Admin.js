@@ -36,6 +36,11 @@ const adminSchema = new mongoose.Schema({
     type: String,
     enum: ['users', 'games', 'rates', 'results', 'withdrawals', 'reports', 'settings']
   }],
+  bidAmount: {
+    type: Number,
+    default: 0
+  },
+  
   isActive: {
     type: Boolean,
     default: true

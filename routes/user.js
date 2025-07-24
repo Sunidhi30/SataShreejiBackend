@@ -423,6 +423,11 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 
     // ✅ Deduct wallet balance
     user.wallet.balance -= betAmount;
+    const admin = await Admin.findOne({ role: 'admin' });
+if (admin) {
+  admin.bidAmount += betAmount;
+  await admin.save();
+}
     await user.save();
 
     // ✅ Check if user already has a bet for this game
@@ -477,7 +482,6 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Server error", error: err.message });
   }
 });
-
 // Get User's Bet History for a Game
 router.get('/games/:gameId/my-bets', authMiddleware, async (req, res) => {
   try {
@@ -654,7 +658,6 @@ router.get('/testing-hardgame',  async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // User plays the Hard Game
 router.post('/user/play-hardgames', authMiddleware, async (req, res) => {
   try {
