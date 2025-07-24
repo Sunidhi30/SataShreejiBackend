@@ -52,15 +52,15 @@ router.get('/games', authMiddleware, async (req, res) => {
   }
 });
 
-// Place bet (before spinning)
 router.post('/place-bet', authMiddleware, async (req, res) => {
   try {
-    const { gameId, betAmount, selectedNumber } = req.body;
+    const { gameId, selectedNumber } = req.body;
+    const betAmount = Number(req.body.betAmount); // ✅ ensure it's a number
 
     // Validation
-    if (!gameId || !betAmount || selectedNumber === undefined) {
+    if (!gameId || isNaN(betAmount) || selectedNumber === undefined) {
       return res.status(400).json({ 
-        error: 'Game ID, bet amount, and selected number are required' 
+        error: 'Game ID, valid bet amount, and selected number are required' 
       });
     }
 
@@ -85,11 +85,15 @@ router.post('/place-bet', authMiddleware, async (req, res) => {
 
     // Check user balance
     const user = await User.findById(req.user.id);
+    if (!user || typeof user.wallet.balance !== 'number') {
+      return res.status(400).json({ error: 'User or wallet balance not found' });
+    }
+
     if (user.wallet.balance < betAmount) {
       return res.status(400).json({ error: 'Insufficient balance' });
     }
 
-    // Deduct bet amount from user balance
+    // Deduct bet amount
     user.wallet.balance -= betAmount;
     await user.save();
 
@@ -115,11 +119,86 @@ router.post('/place-bet', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
+    console.error("💥 Place bet error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Start spinner
+// // Start spinner
+// router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
+//   try {
+//     const { gameId } = req.params;
+
+//     const game = await SpinnerGame.findById(gameId)
+//       .populate('gameConfigId')
+//       .populate('user', 'username');
+
+//     if (!game) {
+//       return res.status(404).json({ error: 'Game not found' });
+//     }
+
+//     // ✅ User access check
+//     if (game.user._id.toString() !== req.user.id) {
+//       return res.status(403).json({ error: 'Unauthorized access' });
+//     }
+
+//     // ✅ Game status check
+//     // if (game.status !== 'pending') {
+//     //   return res.status(400).json({ error: 'Game already started or completed' });
+//     // }
+
+//     const gameConfig = game.gameConfigId;
+//     console.log("gameconfigs: "+gameConfig);
+//     const now = new Date();
+
+//     // ✅ Time restriction check
+//     if (gameConfig.lastResultTime) {
+//       const nextAllowedTime = new Date(gameConfig.lastResultTime.getTime() + gameConfig.resultInterval * 60 * 1000);
+//       if (now < nextAllowedTime) {
+//         return res.status(400).json({
+//           error: 'Spin not allowed yet. Please wait for the current round to end.',
+//           timeRemaining: Math.ceil((nextAllowedTime - now) / 1000)
+//         });
+//       }
+//     }
+
+//     // ✅ Generate or assign resultNumber
+//     let resultNumber;
+//     if (gameConfig.resultMode === 'admin_controlled') {
+//       const nextResult = gameConfig.nextResults.find(result => !result.isUsed);
+//       if (nextResult) {
+//         resultNumber = nextResult.resultNumber;
+//         nextResult.isUsed = true;
+//         nextResult.usedAt = new Date();
+//         await gameConfig.save();
+//       } else {
+//         resultNumber = Math.floor(Math.random() * 10); // fallback
+//       }
+//     } else {
+//       resultNumber = Math.floor(Math.random() * 10); // random mode
+//     }
+
+//     // ✅ Save result and update game
+//     await updateUserSpinHistory(req.user.id, gameConfig._id, resultNumber, game._id);
+
+//     game.status = 'spinning';
+//     game.spinStartTime = now;
+//     game.resultNumber = resultNumber;
+//     await game.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Spinner started',
+//       resultNumber,
+//       gameId: game._id,
+//       spinDuration: 3000,
+//       resultInterval: gameConfig.resultInterval * 60 * 1000
+//     });
+
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
 router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
   try {
     const { gameId } = req.params;
@@ -136,55 +215,146 @@ router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized access' });
     }
 
-    if (game.status !== 'pending') {
-      return res.status(400).json({ error: 'Game already started or completed' });
+    const gameConfig = game.gameConfigId;
+    console.log("game id confis :"+gameConfig);
+    const now = new Date();
+
+    // ✅ Calculate the next allowed spin time
+    if (gameConfig.lastResultTime) {
+      const nextAllowedTime = new Date(
+        gameConfig.lastResultTime.getTime() + gameConfig.resultInterval * 60 * 1000
+      );
+
+      if (now < nextAllowedTime) {
+        const timeRemainingInSec = Math.ceil((nextAllowedTime - now) / 1000);
+        return res.status(400).json({
+          error: 'Spin not allowed yet. Please wait for the current round to end.',
+          timeRemaining: timeRemainingInSec
+        });
+      }
     }
 
-    const gameConfig = game.gameConfigId;
+    // ✅ Generate or assign resultNumber
     let resultNumber;
-
-    // Get result based on admin settings
     if (gameConfig.resultMode === 'admin_controlled') {
-      // Find next unused result
       const nextResult = gameConfig.nextResults.find(result => !result.isUsed);
-      
-      if (!nextResult) {
-        // No admin-set results available, fall back to random
-        resultNumber = Math.floor(Math.random() * 10);
-      } else {
+      if (nextResult) {
         resultNumber = nextResult.resultNumber;
-        
-        // Mark this result as used
         nextResult.isUsed = true;
         nextResult.usedAt = new Date();
         await gameConfig.save();
+      } else {
+        resultNumber = Math.floor(Math.random() * 10); // fallback
       }
     } else {
-      // Random mode
-      resultNumber = Math.floor(Math.random() * 10);
+      resultNumber = Math.floor(Math.random() * 10); // random mode
     }
 
-    // Store the number in user's spin history
-    await updateUserSpinHistory(req.user.id, game.gameConfigId._id, resultNumber, game._id);
+    // ✅ Save spin result
+    await updateUserSpinHistory(req.user.id, gameConfig._id, resultNumber, game._id);
 
-    // Update game status
     game.status = 'spinning';
-    game.spinStartTime = new Date();
-    game.resultNumber = resultNumber; // Store the result but don't reveal yet
+    game.spinStartTime = now;
+    game.resultNumber = resultNumber;
     await game.save();
 
-    res.json({
+    // ✅ Update gameConfig.lastResultTime
+    gameConfig.lastResultTime = now;
+    await gameConfig.save();
+
+    return res.json({
       success: true,
       message: 'Spinner started',
+      resultNumber,
       gameId: game._id,
-      spinDuration: 3000, // 3 seconds spinner animation
-      resultInterval: game.gameConfigId.resultInterval * 60 * 1000 // Convert to milliseconds
+      spinDuration: 3000,
+      resultInterval: gameConfig.resultInterval * 60 * 1000
     });
 
   } catch (error) {
+    console.error('Start Spin Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// router.post('/start-spin/:gameId', authMiddleware, async (req, res) => {
+//   try {
+//     const { gameId } = req.params;
+
+//     const game = await SpinnerGame.findById(gameId)
+//       .populate('gameConfigId')
+//       .populate('user', 'username');
+// // ⛔ Add check here
+// const gameConfiged = game.gameConfigId;
+// const now = new Date();
+
+// if (gameConfiged.lastResultTime) {
+//   const nextAllowedTime = new Date(gameConfiged.lastResultTime.getTime() + gameConfiged.resultInterval * 60 * 1000);
+//   if (now < nextAllowedTime) {
+//     return res.status(400).json({
+//       error: 'Spin not allowed yet. Please wait for the current round to end.',
+//       timeRemaining: Math.ceil((nextAllowedTime - now) / 1000)
+//     });
+//   }
+// }
+//     if (!game) {
+//       return res.status(404).json({ error: 'Game not found' });
+//     }
+
+//     if (game.user._id.toString() !== req.user.id) {
+//       return res.status(403).json({ error: 'Unauthorized access' });
+//     }
+
+//     if (game.status !== 'pending') {
+//       return res.status(400).json({ error: 'Game already started or completed' });
+//     }
+
+//     const gameConfig = game.gameConfigId;
+//     let resultNumber;
+
+//     // Get result based on admin settings
+//     if (gameConfig.resultMode === 'admin_controlled') {
+//       // Find next unused result
+//       const nextResult = gameConfig.nextResults.find(result => !result.isUsed);
+      
+//       if (!nextResult) {
+//         // No admin-set results available, fall back to random
+//         resultNumber = Math.floor(Math.random() * 10);
+//       } else {
+//         resultNumber = nextResult.resultNumber;
+        
+//         // Mark this result as used
+//         nextResult.isUsed = true;
+//         nextResult.usedAt = new Date();
+//         await gameConfig.save();
+//       }
+//     } else {
+//       // Random mode
+//       resultNumber = Math.floor(Math.random() * 10);
+//     }
+
+//     // Store the number in user's spin history
+//     await updateUserSpinHistory(req.user.id, game.gameConfigId._id, resultNumber, game._id);
+
+//     // Update game status
+//     game.status = 'spinning';
+//     game.spinStartTime = new Date();
+//     game.resultNumber = resultNumber; // Store the result but don't reveal yet
+//     await game.save();
+
+//     res.json({
+//       success: true,
+//       message: 'Spinner started',
+//       resultNumber, // ✅ Send this to frontend to stop spinner,
+//       gameId: game._id,
+//       spinDuration: 3000, // 3 seconds spinner animation
+//       resultInterval: game.gameConfigId.resultInterval * 60 * 1000 // Convert to milliseconds
+//     });
+
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// });
 
 // Helper function to update user spin history
 async function updateUserSpinHistory(userId, gameConfigId, number, gameId) {
@@ -241,21 +411,24 @@ router.post('/stop-spin/:gameId', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Game is not in spinning state' });
     }
 
-    // Check if enough time has passed (result interval)
-    const currentTime = new Date();
-    const spinStartTime = new Date(game.spinStartTime);
-    const requiredWaitTime = game.gameConfigId.resultInterval * 60 * 1000; // Convert to milliseconds
-    const elapsedTime = currentTime - spinStartTime;
+    // ⏱ Fetch user to check last spin time
+    const user = await User.findById(req.user.id);
 
-    if (elapsedTime < requiredWaitTime) {
+    const currentTime = new Date();
+    const requiredWaitTime = game.gameConfigId.resultInterval * 60 * 1000; // ms
+    const lastSpinTime = user.lastSpinAt;
+    const isFirstSpin = !lastSpinTime;
+    const timeSinceLastSpin = isFirstSpin ? Infinity : currentTime - new Date(lastSpinTime);
+
+    if (!isFirstSpin && timeSinceLastSpin < requiredWaitTime) {
       return res.status(400).json({
         error: 'Please wait for the result interval to complete',
-        timeRemaining: Math.ceil((requiredWaitTime - elapsedTime) / 1000) // seconds
+        timeRemaining: Math.ceil((requiredWaitTime - timeSinceLastSpin) / 1000)
       });
     }
 
-    // Process the result
-    const resultNumber = game.resultNumber; // Already generated when spin started
+    // ✅ Process the result
+    const resultNumber = game.resultNumber;
     let winningAmount = 0;
     let gameResult = 'lost';
 
@@ -263,21 +436,23 @@ router.post('/stop-spin/:gameId', authMiddleware, async (req, res) => {
       winningAmount = game.betAmount * game.gameConfigId.multiplier;
       gameResult = 'won';
 
-      // Add winnings to user balance
-      const user = await User.findById(req.user.id);
       user.wallet.balance += winningAmount;
       user.wallet.totalWinnings += winningAmount;
-      await user.save();
     }
 
-    // Update game with final result
+    // Update game
     game.winningAmount = winningAmount;
     game.gameResult = gameResult;
     game.status = 'completed';
-    game.spinEndTime = new Date();
-    game.resultGeneratedAt = new Date();
-    await game.save();
+    game.spinEndTime = currentTime;
+    game.resultGeneratedAt = currentTime;
 
+    // 📝 Save updates
+    user.lastSpinAt = currentTime;
+    await Promise.all([user.save(), game.save()]);
+    const gameConfig = await GameConfig.findById(game.gameConfigId);
+    gameConfig.lastResultTime = new Date();
+    await gameConfig.save();
     res.json({
       success: true,
       result: {
@@ -296,6 +471,7 @@ router.post('/stop-spin/:gameId', authMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // Get game status
 router.get('/status/:gameId', authMiddleware, async (req, res) => {
@@ -439,8 +615,8 @@ router.get('/spinner-history', authMiddleware, async (req, res) => {
 
     // Return summary for all games
     const summaries = userHistories.map(history => ({
-      gameId: history.gameConfigId._id,
-      gameName: history.gameConfigId.gameName,
+      gameId: history.gameConfigId?._id,
+      gameName: history.gameConfigId?.gameName || 'Unknown',
       totalSpins: history.totalSpins,
       lastSpinAt: history.lastSpinAt,
       recentNumbers: history.spinnerNumbers
@@ -448,6 +624,7 @@ router.get('/spinner-history', authMiddleware, async (req, res) => {
         .slice(0, 10)
         .map(spin => spin.number)
     }));
+    
 
     res.json({
       success: true,

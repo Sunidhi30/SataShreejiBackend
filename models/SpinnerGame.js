@@ -50,6 +50,11 @@ const spinnerGameSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  lastSpinAt: {
+    type: Date,
+    default: null
+  }
+,  
   resultGeneratedAt: {
     type: Date,
     default: null

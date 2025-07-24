@@ -15,6 +15,10 @@ const gameConfigSchema = new mongoose.Schema({
     min: 1, // minimum 1 minute
     default: 5 // default 5 minutes
   },
+  lastResultTime: {
+    type: Date,
+    default: null
+  },  
   isActive: {
     type: Boolean,
     default: true

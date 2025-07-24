@@ -428,21 +428,93 @@ router.post('/users/:id/add-points', adminAuth, async (req, res) => {
       res.status(500).json({ message: 'Server error', error: error.message });
     }
 });
-// Get all games
-router.get('/games', adminAuth, async (req, res) => {
+// ✅ Get all games with dynamic rates
+router.get('/testing-games', async (req, res) => {
   try {
-    const games = await Game.find()
-    .sort({ createdAt: -1 });
-  
+    const games = await Game.find({}); // Or use filter like { status: 'active' }
+
+    const enrichedGames = await Promise.all(games.map(async (game) => {
+      const rates = await GameRate.find({ gameId: game._id });
+
+      const rateMap = {};
+      for (const rate of rates) {
+        // Convert snake_case to camelCase keys (optional but cleaner)
+        if (rate.rateType === 'single_digit') {
+          rateMap.singleDigit = rate.rate;
+        } else if (rate.rateType === 'jodi_digit') {
+          rateMap.jodiDigit = rate.rate;
+        } else {
+          rateMap[rate.rateType] = rate.rate; // fallback for any other rate types
+        }
+      }
+
+      return {
+        ...game.toObject(),
+        rates: rateMap
+      };
+    }));
 
     res.json({
       success: true,
-      games
+      games: enrichedGames
+    });
+  } catch (error) {
+    console.error('Error in GET /games:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+router.get('/games', adminAuth, async (req, res) => {
+  try {
+    const games = await Game.find().sort({ createdAt: -1 });
+
+    const enrichedGames = await Promise.all(games.map(async (game) => {
+      const rates = await GameRate.find({ gameId: game._id });
+
+      // Build rate object as expected in your current format
+      const rateMap = {
+        singleDigit: 9,  // default if not found
+        jodiDigit: 950   // default if not found
+      };
+
+      rates.forEach(rate => {
+        if (rate.rateType === 'single_digit') {
+          rateMap.singleDigit = rate.rate;
+        } else if (rate.rateType === 'jodi_digit') {
+          rateMap.jodiDigit = rate.rate;
+        }
+      });
+
+      // Inject updated rates into the existing game object
+      return {
+        ...game.toObject(),
+        rates: rateMap
+      };
+    }));
+
+    res.json({
+      success: true,
+      games: enrichedGames
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// // Get all games
+// router.get('/games', adminAuth, async (req, res) => {
+//   try {
+//     const games = await Game.find()
+//     .sort({ createdAt: -1 });
+  
+
+//     res.json({
+//       success: true,
+//       games
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 // // Add new game
 router.post('/games', adminAuth, async (req, res) => {
   try {
@@ -504,6 +576,7 @@ router.post('/games', adminAuth, async (req, res) => {
 //   }
 // });
 // Update game
+
 router.put('/games/:id', adminAuth, async (req, res) => {
   try {
     const { name, type, openTime, closeTime, resultTime, status } = req.body;
