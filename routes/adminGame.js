@@ -222,7 +222,6 @@ router.get('/pending-results/:gameId', adminAuthMiddleware, async (req, res) => 
     res.status(500).json({ error: error.message });
   }
 });
-
 // Admin: Clear all pending results
 router.delete('/clear-results/:gameId', adminAuthMiddleware, async (req, res) => {
   try {
@@ -249,7 +248,6 @@ router.delete('/clear-results/:gameId', adminAuthMiddleware, async (req, res) =>
     res.status(500).json({ error: error.message });
   }
 });
-
 // Admin: Toggle result mode (admin_controlled / random)
 router.put('/result-mode/:gameId', adminAuthMiddleware, async (req, res) => {
   try {
@@ -341,5 +339,4 @@ router.get('/statistics', adminAuthMiddleware, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
 module.exports = router;
