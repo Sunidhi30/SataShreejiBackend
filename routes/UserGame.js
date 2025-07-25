@@ -56,20 +56,17 @@ router.post('/place-bet', authMiddleware, async (req, res) => {
   try {
     const { gameId, selectedNumber } = req.body;
     const betAmount = Number(req.body.betAmount); // ✅ ensure it's a number
-
     // Validation
     if (!gameId || isNaN(betAmount) || selectedNumber === undefined) {
       return res.status(400).json({ 
         error: 'Game ID, valid bet amount, and selected number are required' 
       });
     }
-
     if (selectedNumber < 0 || selectedNumber > 9) {
       return res.status(400).json({ 
         error: 'Selected number must be between 0-9' 
       });
     }
-
     // Get game configuration
     const gameConfig = await GameConfig.findById(gameId);
     if (!gameConfig || !gameConfig.isActive) {

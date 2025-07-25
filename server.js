@@ -3,9 +3,6 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const db = require('./utils/db')
 const app = express();
-const rateLimit = require('express-rate-limit');
-
-// Middleware
 app.use(express.json());
 app.use(cors({
   origin: true,
@@ -13,36 +10,23 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 require('dotenv').config()
 db();
-
 db().then(function (db) {
   console.log(`Db connnected`)
 })
-// Import routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const walletRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
-// Routes
-// Import routes
 const adminGameRoutes = require('./routes/adminGame');
 const userGameRoutes = require('./routes/UserGame');
-const UserSpinHistory = require('./models/UserSpinHistory'); // Import the new model
-// Rate limiting
-
-
-
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api/admin', adminRoutes);
-// Routes
 app.use('/api/admin/games', adminGameRoutes);
 app.use('/api/games', userGameRoutes);
-
-
 const PORT = process.env.PORT || 9000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
