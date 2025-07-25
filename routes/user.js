@@ -1323,9 +1323,11 @@ router.get('/user-bets/:userId', authMiddleware, async (req, res) => {
 });
 
 // API to get bets by game for a user
-router.get('/user-bets/:userId/game/:gameId', authMiddleware, async (req, res) => {
+router.get('/user-bets/game/:gameId', authMiddleware, async (req, res) => {
   try {
-      const { userId, gameId } = req.params;
+      const { gameId } = req.params;
+      const userId = req.user._id; // ✅ Get userId from token
+
       
       const bets = await Bet.find({ 
           user: userId, 
