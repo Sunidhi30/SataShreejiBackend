@@ -1788,5 +1788,39 @@ router.get('/user-betting-summary/:userId', authMiddleware, async (req, res) => 
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
+router.get('/user-won-games', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id; // ✅ Get user ID from token
+
+    // 🔍 Find all winning bets for this user
+    const wonBets = await Bet.find({
+      user: userId,
+      isWinner: true
+    })
+    .populate('game', 'name openDateTime closeDateTime status result') // populate relevant game fields
+    .sort({ createdAt: -1 });
+
+    // 🧠 Extract unique games
+    const uniqueGamesMap = {};
+    const wonGames = [];
+
+    for (const bet of wonBets) {
+      const gameId = bet.game?._id?.toString();
+      if (gameId && !uniqueGamesMap[gameId]) {
+        uniqueGamesMap[gameId] = true;
+        wonGames.push(bet.game);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Won games retrieved successfully',
+      games: wonGames
+    });
+  } catch (error) {
+    console.error('Error fetching won games:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 
 module.exports = router;
