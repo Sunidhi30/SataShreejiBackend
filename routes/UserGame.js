@@ -93,6 +93,10 @@ router.post('/place-bet', authMiddleware, async (req, res) => {
     // Deduct bet amount
     user.wallet.balance -= betAmount;
     await user.save();
+    await Admin.findOneAndUpdate(
+      { role: 'admin' },
+      { $inc: { bidAmount: betAmount } }
+    );
 
     // Create game entry
     const spinnerGame = new SpinnerGame({
