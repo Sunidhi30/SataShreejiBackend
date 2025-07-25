@@ -540,9 +540,39 @@ router.post('/games', adminAuth, async (req, res) => {
     const { name, gameType, openDateTime, closeDateTime, resultDateTime, status } = req.body;
 
     // Check if game name already exists
+    // Check if game name already exists
     const existingGame = await Game.findOne({ name });
     if (existingGame) {
       return res.status(400).json({ message: 'Game name already exists' });
+    }
+
+    const now = new Date();
+
+    const openTime = new Date(openDateTime);
+    const closeTime = new Date(closeDateTime);
+    const resultTime = new Date(resultDateTime);
+
+    // Check: Open, Close, Result times cannot be in the past
+    if (openTime < now) {
+      return res.status(400).json({ message: 'Open time cannot be in the past' });
+    }
+
+    if (closeTime < now) {
+      return res.status(400).json({ message: 'Close time cannot be in the past' });
+    }
+
+    if (resultTime < now) {
+      return res.status(400).json({ message: 'Result time cannot be in the past' });
+    }
+
+    // Check: Open time must be before Close time
+    if (openTime >= closeTime) {
+      return res.status(400).json({ message: 'Open time must be before Close time' });
+    }
+
+    // Check: Close time must be before Result time
+    if (closeTime >= resultTime) {
+      return res.status(400).json({ message: 'Close time must be before Result time' });
     }
 
     const game = new Game({
@@ -691,6 +721,20 @@ router.post('/games/:gameId/rates', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+router.delete('/user/:userId', adminAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByIdAndDelete(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({ success: true, message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 // 5. RESULT MANAGEMENT
 // Get results for a game
 router.get('/games/:gameId/results', adminAuth, async (req, res) => {
@@ -722,8 +766,20 @@ router.get('/games/:gameId/results', adminAuth, async (req, res) => {
 router.post('/games/:gameId/results', adminAuth, async (req, res) => {
   try {
     const { date, openResult, closeResult, spinnerResult } = req.body;
-    
-    const result = new Result({
+    const gameId = req.params.gameId;
+
+     // Fetch the game to access the scheduled resultDateTime
+     const game = await Game.findById(gameId);
+     if (!game) {
+       return res.status(404).json({ message: 'Game not found' });
+     }
+ 
+     // Check if current time is before the game's scheduled result time
+     const now = new Date();
+     if (now < new Date(game.resultDateTime)) {
+       return res.status(400).json({ message: 'Result cannot be declared before the scheduled result time' });
+     }
+    const result = new Result({   
       gameId: req.params.gameId,
       date: new Date(date),
       openResult,
@@ -1013,29 +1069,85 @@ router.get('/reports/users', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// // GET /games/:gameId/investors
+// router.get('/:gameId/investors', async (req, res) => {
+//   try {
+//     const { gameId } = req.params;
+
+//     // Find all bets for the specified game and populate user details
+//     const bets = await Bet.find({ game: gameId })
+//       .populate('user', 'username email profileImage') // get only needed user fields
+//       .sort({ createdAt: -1 }); // newest first
+
+//     // Format the response
+//     const investors = bets.map(bet => ({
+//       userId: bet.user._id,
+//       username: bet.user.username,
+//       email: bet.user.email,
+//       profileImage: bet.user.profileImage,
+//       betAmount: bet.betAmount,
+//       betNumber: bet.betNumber,
+//       betType: bet.betType,
+//       session: bet.session,
+//       status: bet.status,
+//       createdAt: bet.createdAt
+//     }));
+
+//     return res.status(200).json({
+//       success: true,
+//       gameId,
+//       totalInvestors: investors.length,
+//       investors
+//     });
+//   } catch (error) {
+//     console.error('Error fetching investors:', error);
+//     return res.status(500).json({
+//       success: false,
+//       message: 'Something went wrong. Please try again later.'
+//     });
+//   }
+// });
 // GET /games/:gameId/investors
-router.get('/:gameId/investors', async (req, res) => {
+// GET /games/:gameId/investors
+router.get('/testing/:gameId/investors', async (req, res) => {
   try {
     const { gameId } = req.params;
 
     // Find all bets for the specified game and populate user details
     const bets = await Bet.find({ game: gameId })
-      .populate('user', 'username email profileImage') // get only needed user fields
-      .sort({ createdAt: -1 }); // newest first
+      .populate('user', 'username email profileImage')
+      .sort({ createdAt: -1 });
 
-    // Format the response
-    const investors = bets.map(bet => ({
-      userId: bet.user._id,
-      username: bet.user.username,
-      email: bet.user.email,
-      profileImage: bet.user.profileImage,
-      betAmount: bet.betAmount,
-      betNumber: bet.betNumber,
-      betType: bet.betType,
-      session: bet.session,
-      status: bet.status,
-      createdAt: bet.createdAt
-    }));
+    const userMap = new Map();
+
+    bets.forEach(bet => {
+      const userId = bet.user._id.toString();
+
+      if (!userMap.has(userId)) {
+        userMap.set(userId, {
+          userId: bet.user._id,
+          username: bet.user.username,
+          email: bet.user.email,
+          profileImage: bet.user.profileImage,
+          totalBetAmount: 0,
+          betHistory: []
+        });
+      }
+
+      const userEntry = userMap.get(userId);
+      userEntry.totalBetAmount += bet.totalBetAmount; // ✅ FIXED HERE
+
+      userEntry.betHistory.push({
+        betNumbers: bet.betNumbers,               // ✅ Include full bet numbers with amounts
+        totalBetAmount: bet.totalBetAmount,       // ✅ Include total
+        betType: bet.betType,
+        session: bet.session,
+        status: bet.status,
+        createdAt: bet.createdAt
+      });
+    });
+
+    const investors = Array.from(userMap.values());
 
     return res.status(200).json({
       success: true,
@@ -1049,6 +1161,101 @@ router.get('/:gameId/investors', async (req, res) => {
       success: false,
       message: 'Something went wrong. Please try again later.'
     });
+  }
+});
+// GET /games/:gameId/investors?sort=highest OR sort=lowest
+router.get('/testing/:gameId/investors', async (req, res) => {
+  try {
+    const { gameId } = req.params;
+    const { sort = 'highest' } = req.query; // default to highest
+
+    // Fetch all bets for the game
+    const bets = await Bet.find({ game: gameId })
+      .populate('user', 'username email profileImage')
+      .sort({ createdAt: -1 });
+
+    // Map to group by user
+    const userMap = new Map();
+
+    bets.forEach(bet => {
+      const userId = bet.user._id.toString();
+
+      if (!userMap.has(userId)) {
+        userMap.set(userId, {
+          userId: bet.user._id,
+          username: bet.user.username,
+          email: bet.user.email,
+          profileImage: bet.user.profileImage,
+          totalBetAmount: 0,
+          betHistory: []
+        });
+      }
+
+      const userEntry = userMap.get(userId);
+      userEntry.totalBetAmount += bet.totalBetAmount;
+
+      userEntry.betHistory.push({
+        betNumbers: bet.betNumbers,
+        totalBetAmount: bet.totalBetAmount,
+        betType: bet.betType,
+        session: bet.session,
+        status: bet.status,
+        createdAt: bet.createdAt
+      });
+    });
+
+    let investors = Array.from(userMap.values());
+
+    // 🔽 Apply sorting
+    if (sort === 'lowest') {
+      investors.sort((a, b) => a.totalBetAmount - b.totalBetAmount);
+    } else {
+      investors.sort((a, b) => b.totalBetAmount - a.totalBetAmount);
+    }
+
+    return res.status(200).json({
+      success: true,
+      gameId,
+      totalInvestors: investors.length,
+      investors
+    });
+  } catch (error) {
+    console.error('Error fetching investors:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+
+
+// API to get bets by game for a user
+router.get('/user-bets/game/:gameId', async (req, res) => {
+  try {
+      const { gameId,userId  } = req.params;
+
+
+      
+      const bets = await Bet.find({ 
+          user: userId, 
+          game: gameId 
+      })
+      .populate('game', 'name openDateTime closeDateTime resultDateTime status rates')
+      .sort({ createdAt: -1 });
+      
+      // Get game results if available
+      const results = await Result.find({ gameId }).sort({ date: -1 }).limit(5);
+      
+      res.json({
+          success: true,
+          data: {
+              bets,
+              gameResults: results
+          }
+      });
+  } catch (error) {
+      console.error('Error fetching user game bets:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 // GET /games/:gameId/investors?sort=highest OR ?sort=lowest

@@ -1523,6 +1523,7 @@ router.get('/user-bets/game/:gameId', authMiddleware, async (req, res) => {
 //       });
 //   }
 // });
+
 router.post('/check-results', authMiddleware, async (req, res) => {
   try {
     const { gameId, userId } = req.body;
