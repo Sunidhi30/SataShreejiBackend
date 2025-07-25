@@ -256,39 +256,58 @@ router.get('/users-count', async (req, res) => {
     }
 });
   // Get Total Bid Amount
+// router.get('/total-bid-amount', async (req, res) => {
+//   try {
+//     // Get total bet amount from Bet collection
+//     const betResult = await Bet.aggregate([
+//       {
+//         $group: {
+//           _id: null,
+//           totalAmount: { $sum: "$betAmount" }
+//         }
+//       }
+//     ]);
+
+//     // Get total bet amount from HardGame collection
+//     const hardGameResult = await HardGame.aggregate([
+//       {
+//         $group: {
+//           _id: null,
+//           totalAmount: { $sum: "$betAmount" }
+//         }
+//       }
+//     ]);
+
+//     const totalBetAmount = (betResult[0]?.totalAmount || 0) + (hardGameResult[0]?.totalAmount || 0);
+
+//     res.status(200).json({
+//       message: "Total bid amount retrieved successfully",
+//       totalBidAmount: totalBetAmount
+//     });
+//   } catch (error) {
+//     console.error("Error getting total bid amount:", error);
+//     res.status(500).json({ message: "Server error while fetching total bid amount" });
+//   }
+// });
+// Get Admin's total bid amount
 router.get('/total-bid-amount', async (req, res) => {
   try {
-    // Get total bet amount from Bet collection
-    const betResult = await Bet.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: "$betAmount" }
-        }
-      }
-    ]);
+    const admin = await Admin.findOne({ role: 'admin' }); // or use {_id: specificId} if needed
 
-    // Get total bet amount from HardGame collection
-    const hardGameResult = await HardGame.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalAmount: { $sum: "$betAmount" }
-        }
-      }
-    ]);
-
-    const totalBetAmount = (betResult[0]?.totalAmount || 0) + (hardGameResult[0]?.totalAmount || 0);
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
 
     res.status(200).json({
-      message: "Total bid amount retrieved successfully",
-      totalBidAmount: totalBetAmount
+      message: "Admin bid amount retrieved successfully",
+      bidAmount: admin.bidAmount
     });
   } catch (error) {
-    console.error("Error getting total bid amount:", error);
-    res.status(500).json({ message: "Server error while fetching total bid amount" });
+    console.error("Error retrieving admin bid amount:", error);
+    res.status(500).json({ message: "Server error while fetching bid amount" });
   }
 });
+
 // 2. USER MANAGEMENT
 // Get all users
 router.get('/users', adminAuth, async (req, res) => {
