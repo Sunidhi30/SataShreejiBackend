@@ -234,25 +234,26 @@ router.get('/timings-today-number', authMiddleware, async (req, res) => {
 });
 router.get('/games', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user._id; // ✅ Get logged-in user
+    const userId = req.user._id;
 
-    // 🔥 Step 1: Get all active games
-    const activeGames = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
+    // ✅ Step 1: Get all active games whose results have not been declared
+    const activeGames = await Game.find({ 
+      status: 'active',
+      result: { $exists: false } // or resultDeclared: false
+    }).sort({ createdAt: -1 });
 
-    // 🔥 Step 2: Add game status (open/closed) and participant count
     const enrichedGames = await Promise.all(
       activeGames.map(async (game) => {
         const now = new Date();
-
         const isOpen = now >= game.openDateTime && now <= game.closeDateTime;
         const gameStatus = isOpen ? 'open' : 'closed';
 
         const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0); // midnight today
+        startOfDay.setHours(0, 0, 0, 0);
 
         const totalParticipants = await Bet.countDocuments({
           game: game._id,
-          betDate: { $gte: startOfDay } // only today's participants
+          betDate: { $gte: startOfDay }
         });
 
         return {
@@ -263,7 +264,6 @@ router.get('/games', authMiddleware, async (req, res) => {
       })
     );
 
-    // ✅ Send response
     res.json({
       message: 'Games retrieved successfully',
       games: enrichedGames
@@ -274,6 +274,47 @@ router.get('/games', authMiddleware, async (req, res) => {
   }
 });
 
+// router.get('/games', authMiddleware, async (req, res) => {
+//   try {
+//     const userId = req.user._id; // ✅ Get logged-in user
+
+//     // 🔥 Step 1: Get all active games
+//     const activeGames = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
+
+//     // 🔥 Step 2: Add game status (open/closed) and participant count
+//     const enrichedGames = await Promise.all(
+//       activeGames.map(async (game) => {
+//         const now = new Date();
+
+//         const isOpen = now >= game.openDateTime && now <= game.closeDateTime;
+//         const gameStatus = isOpen ? 'open' : 'closed';
+
+//         const startOfDay = new Date();
+//         startOfDay.setHours(0, 0, 0, 0); // midnight today
+
+//         const totalParticipants = await Bet.countDocuments({
+//           game: game._id,
+//           betDate: { $gte: startOfDay } // only today's participants
+//         });
+
+//         return {
+//           ...game.toObject(),
+//           gameStatus,
+//           totalParticipants
+//         };
+//       })
+//     );
+
+//     // ✅ Send response
+//     res.json({
+//       message: 'Games retrieved successfully',
+//       games: enrichedGames
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 // // Get All Games
 // router.get('/games', authMiddleware, async (req, res) => {
 //   try {
@@ -1315,6 +1356,647 @@ router.get('/notices', async (req, res) => {
   } catch (err) {
     console.error('Get Notices Error:', err);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+
+
+
+
+// API to get all bets for a particular user
+router.get('/user-bets/:userId', authMiddleware, async (req, res) => {
+  try {
+      const { userId } = req.params;
+      const { status, gameId, limit = 10, page = 1 } = req.query;
+      
+      // Build query
+      let query = { user: userId };
+      if (status) query.status = status;
+      if (gameId) query.game = gameId;
+      
+      const skip = (page - 1) * limit;
+      
+      // Get user bets with game details
+      const bets = await Bet.find(query)
+          .populate('game', 'name openDateTime closeDateTime resultDateTime status')
+          .sort({ createdAt: -1 })
+          .limit(parseInt(limit))
+          .skip(skip);
+      
+      const totalBets = await Bet.countDocuments(query);
+      
+      res.json({
+          success: true,
+          data: {
+              bets,
+              pagination: {
+                  currentPage: parseInt(page),
+                  totalPages: Math.ceil(totalBets / limit),
+                  totalBets,
+                  hasNext: page * limit < totalBets,
+                  hasPrev: page > 1
+              }
+          }
+      });
+  } catch (error) {
+      console.error('Error fetching user bets:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// API to get bets by game for a user
+router.get('/user-bets/:userId/game/:gameId', authMiddleware, async (req, res) => {
+  try {
+      const { userId, gameId } = req.params;
+      
+      const bets = await Bet.find({ 
+          user: userId, 
+          game: gameId 
+      })
+      .populate('game', 'name openDateTime closeDateTime resultDateTime status rates')
+      .sort({ createdAt: -1 });
+      
+      // Get game results if available
+      const results = await Result.find({ gameId }).sort({ date: -1 }).limit(5);
+      
+      res.json({
+          success: true,
+          data: {
+              bets,
+              gameResults: results
+          }
+      });
+  } catch (error) {
+      console.error('Error fetching user game bets:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// // Enhanced check results API for individual bet
+
+// API to check results for a specific user's bets in a game
+// router.post('/check-user-game-results', authMiddleware, async (req, res) => {
+//   try {
+//       const { gameId, userId } = req.body;
+      
+//       if (!gameId || !userId) {
+//           return res.status(400).json({ 
+//               success: false, 
+//               message: 'Game ID and User ID are required' 
+//           });
+//       }
+      
+//       // Get the game details
+//       const game = await Game.findById(gameId);
+//       if (!game) {
+//           return res.status(404).json({ 
+//               success: false, 
+//               message: 'Game not found' 
+//           });
+//       }
+      
+//       // Get the latest result for this game
+//       const result = await Result.findOne({ 
+//           gameId: gameId,
+//           isActive: true 
+//       }).sort({ declaredAt: -1 });
+      
+//       if (!result || (result.openResult === null && result.closeResult === null)) {
+//           return res.status(400).json({ 
+//               success: false, 
+//               message: 'No results declared for this game yet' 
+//           });
+//       }
+      
+//       // Get user's pending bets for this game
+//       const userBets = await Bet.find({ 
+//           game: gameId, 
+//           user: userId,
+//           status: 'pending' 
+//       }).populate('user', 'name email');
+      
+//       if (userBets.length === 0) {
+//           return res.json({
+//               success: true,
+//               message: 'No pending bets found for this user in this game',
+//               data: {
+//                   userBets: [],
+//                   totalWinnings: 0,
+//                   gameResult: {
+//                       openResult: result.openResult,
+//                       closeResult: result.closeResult
+//                   }
+//               }
+//           });
+//       }
+      
+//       let totalUserWinnings = 0;
+//       const userBetResults = [];
+      
+//       // Process each user bet
+//       for (const bet of userBets) {
+//           let totalWinningAmount = 0;
+//           let winningNumbers = [];
+//           let hasWon = false;
+          
+//           // Check each bet number against results
+//           for (const betNumber of bet.betNumbers) {
+//               let numberWon = false;
+//               let winAmount = 0;
+              
+//               // Check based on bet type
+//               if (bet.betType === 'single') {
+//                   // For single digit bets, check against both open and close results
+//                   const openMatch = result.openResult !== null && betNumber.number === result.openResult;
+//                   const closeMatch = result.closeResult !== null && betNumber.number === result.closeResult;
+                  
+//                   if (openMatch || closeMatch) {
+//                       numberWon = true;
+//                       winAmount = betNumber.amount * game.rates.singleDigit;
+//                   }
+//               } else if (bet.betType === 'jodi') {
+//                   // For jodi bets, combine open and close results
+//                   if (result.openResult !== null && result.closeResult !== null) {
+//                       const jodiNumber = parseInt(`${result.openResult}${result.closeResult}`);
+                      
+//                       if (betNumber.number === jodiNumber) {
+//                           numberWon = true;
+//                           winAmount = betNumber.amount * game.rates.jodiDigit;
+//                       }
+//                   }
+//               }
+              
+//               if (numberWon) {
+//                   hasWon = true;
+//                   totalWinningAmount += winAmount;
+//                   winningNumbers.push({
+//                       number: betNumber.number,
+//                       betAmount: betNumber.amount,
+//                       winAmount: winAmount,
+//                       multiplier: bet.betType === 'single' ? game.rates.singleDigit : game.rates.jodiDigit
+//                   });
+//               }
+//           }
+          
+//           // Update bet status and winnings
+//           bet.status = hasWon ? 'won' : 'lost';
+//           bet.winningAmount = totalWinningAmount;
+//           bet.isWinner = hasWon;
+//           bet.winningNumbers = winningNumbers;
+//           bet.resultNumber = bet.betType === 'single' 
+//               ? (result.openResult !== null ? result.openResult : result.closeResult)
+//               : (result.openResult !== null && result.closeResult !== null) 
+//                   ? parseInt(`${result.openResult}${result.closeResult}`) 
+//                   : null;
+          
+//           await bet.save();
+          
+//           // If won, update user's wallet
+//           if (hasWon && totalWinningAmount > 0) {
+//               await User.findByIdAndUpdate(userId, {
+//                   $inc: {
+//                       'wallet.balance': totalWinningAmount,
+//                       'wallet.totalWinnings': totalWinningAmount
+//                   }
+//               });
+              
+//               totalUserWinnings += totalWinningAmount;
+//           }
+          
+//           userBetResults.push({
+//               betId: bet.betId,
+//               status: bet.status,
+//               totalBetAmount: bet.totalBetAmount,
+//               winningAmount: totalWinningAmount,
+//               winningNumbers: winningNumbers,
+//               isWinner: hasWon,
+//               betNumbers: bet.betNumbers
+//           });
+//       }
+      
+//       res.json({
+//           success: true,
+//           message: `Results processed successfully for user's ${userBets.length} bets`,
+//           data: {
+//               userBets: userBetResults,
+//               totalWinnings: totalUserWinnings,
+//               gameResult: {
+//                   openResult: result.openResult,
+//                   closeResult: result.closeResult,
+//                   jodiResult: (result.openResult !== null && result.closeResult !== null) 
+//                       ? parseInt(`${result.openResult}${result.closeResult}`) 
+//                       : null
+//               },
+//               gameRates: {
+//                   singleDigit: game.rates.singleDigit,
+//                   jodiDigit: game.rates.jodiDigit
+//               }
+//           }
+//       });
+      
+//   } catch (error) {
+//       console.error('Error checking user game results:', error);
+//       res.status(500).json({ 
+//           success: false, 
+//           message: 'Server error', 
+//           error: error.message 
+//       });
+//   }
+// });
+router.post('/check-user-game-results', authMiddleware, async (req, res) => {
+  try {
+    const { gameId, userId } = req.body;
+
+    if (!gameId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Game ID and User ID are required'
+      });
+    }
+
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return res.status(404).json({
+        success: false,
+        message: 'Game not found'
+      });
+    }
+
+    const result = await Result.findOne({
+      gameId: gameId,
+      isActive: true
+    }).sort({ declaredAt: -1 });
+
+    if (!result || (result.openResult === null && result.closeResult === null)) {
+      return res.status(400).json({
+        success: false,
+        message: 'No results declared for this game yet'
+      });
+    }
+
+    console.log(`✅ Game Result for ${game.gameName}:`);
+    console.log(`  - Open: ${result.openResult}`);
+    console.log(`  - Close: ${result.closeResult}`);
+    console.log(`  - Jodi: ${result.openResult}${result.closeResult}`);
+
+    const userBets = await Bet.find({
+      game: gameId,
+      user: userId,
+      status: 'pending'
+    }).populate('user', 'name email');
+
+    if (userBets.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No pending bets found for this user in this game',
+        data: {
+          userBets: [],
+          totalWinnings: 0,
+          gameResult: {
+            openResult: result.openResult,
+            closeResult: result.closeResult
+          }
+        }
+      });
+    }
+
+    let totalUserWinnings = 0;
+    const userBetResults = [];
+
+    for (const bet of userBets) {
+      let totalWinningAmount = 0;
+      let winningNumbers = [];
+      let hasWon = false;
+
+      console.log(`🔍 Checking Bet ID: ${bet.betId}`);
+      console.log(`  - Bet Type: ${bet.betType}`);
+      console.log(`  - Bet Numbers:`, bet.betNumbers);
+
+      for (const betNumber of bet.betNumbers) {
+        const number = Number(betNumber.number);
+        const amount = betNumber.amount;
+
+        const openMatch = result.openResult !== null && number === result.openResult;
+        const closeMatch = result.closeResult !== null && number === result.closeResult;
+        const jodiMatch = result.openResult !== null && result.closeResult !== null &&
+                          number === parseInt(`${result.openResult}${result.closeResult}`);
+
+        let numberWon = false;
+        let winAmount = 0;
+        let multiplierUsed = 0;
+
+        console.log(`  ➤ Checking Number: ${number}`);
+        console.log(`     - Open Match: ${openMatch}`);
+        console.log(`     - Close Match: ${closeMatch}`);
+        console.log(`     - Jodi Match: ${jodiMatch}`);
+
+        if (openMatch || closeMatch) {
+          numberWon = true;
+          winAmount += amount * game.rates.singleDigit;
+          multiplierUsed = game.rates.singleDigit;
+        }
+
+        if (jodiMatch) {
+          numberWon = true;
+          winAmount += amount * game.rates.jodiDigit;
+          multiplierUsed = game.rates.jodiDigit;
+        }
+
+        if (numberWon) {
+          hasWon = true;
+          totalWinningAmount += winAmount;
+          console.log(`     ✅ WIN! Amount: ₹${winAmount} using multiplier: ${multiplierUsed}`);
+
+          winningNumbers.push({
+            number: betNumber.number,
+            betAmount: amount,
+            winAmount,
+            matched: {
+              open: openMatch,
+              close: closeMatch,
+              jodi: jodiMatch
+            },
+            multiplierUsed
+          });
+        } else {
+          console.log(`     ❌ No Match. Lost for number: ${number}`);
+        }
+      }
+
+      bet.status = hasWon ? 'won' : 'lost';
+      bet.winningAmount = totalWinningAmount;
+      bet.isWinner = hasWon;
+      bet.winningNumbers = winningNumbers;
+      bet.resultNumber = bet.betType === 'single'
+        ? (result.openResult !== null ? result.openResult : result.closeResult)
+        : (result.openResult !== null && result.closeResult !== null)
+          ? parseInt(`${result.openResult}${result.closeResult}`)
+          : null;
+
+      await bet.save();
+
+      if (hasWon && totalWinningAmount > 0) {
+        await User.findByIdAndUpdate(userId, {
+          $inc: {
+            'wallet.balance': totalWinningAmount,
+            'wallet.totalWinnings': totalWinningAmount
+          }
+        });
+
+        totalUserWinnings += totalWinningAmount;
+      }
+
+      userBetResults.push({
+        betId: bet.betId,
+        status: bet.status,
+        totalBetAmount: bet.totalBetAmount,
+        winningAmount: totalWinningAmount,
+        winningNumbers: winningNumbers,
+        isWinner: hasWon,
+        betNumbers: bet.betNumbers
+      });
+
+      console.log(`🎯 Final Bet Status: ${bet.status} | Winnings: ₹${totalWinningAmount}`);
+    }
+
+    res.json({
+      success: true,
+      message: `Results processed successfully for user's ${userBets.length} bets`,
+      data: {
+        userBets: userBetResults,
+        totalWinnings: totalUserWinnings,
+        gameResult: {
+          openResult: result.openResult,
+          closeResult: result.closeResult,
+          jodiResult: (result.openResult !== null && result.closeResult !== null)
+            ? parseInt(`${result.openResult}${result.closeResult}`)
+            : null
+        },
+        gameRates: {
+          singleDigit: game.rates.singleDigit,
+          jodiDigit: game.rates.jodiDigit
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('🚨 Error checking user game results:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+
+// Bulk check results for all pending bets of a game
+router.post('/check-game-results', authMiddleware, async (req, res) => {
+  try {
+      const { gameId, date } = req.body;
+      
+      // Get the result for the game
+      const result = await Result.findOne({ 
+          gameId,
+          date: new Date(date)
+      });
+      
+      if (!result || (!result.openResult && !result.closeResult)) {
+          return res.status(400).json({ 
+              success: false, 
+              message: 'Result not declared for this game and date' 
+          });
+      }
+      
+      // Get game details
+      const game = await Game.findById(gameId);
+      if (!game) {
+          return res.status(404).json({ success: false, message: 'Game not found' });
+      }
+      
+      // Find all pending bets for this game and date
+      const pendingBets = await Bet.find({
+          game: gameId,
+          status: 'pending',
+          betDate: {
+              $gte: new Date(new Date(date).toDateString()),
+              $lt: new Date(new Date(date).getTime() + 24 * 60 * 60 * 1000)
+          }
+      }).populate('user', 'wallet');
+      
+      let processedBets = 0;
+      let winnersCount = 0;
+      let totalWinningsDistributed = 0;
+      
+      // Process each bet
+      for (const bet of pendingBets) {
+          let totalWinningAmount = 0;
+          let winningNumbers = [];
+          let hasWon = false;
+          
+          // Check each bet number
+          for (const betNumber of bet.betNumbers) {
+              let numberWon = false;
+              let winAmount = 0;
+              
+              if (bet.betType === 'single') {
+                  const resultNumber = bet.session === 'open' ? result.openResult : result.closeResult;
+                  
+                  if (betNumber.number === resultNumber) {
+                      numberWon = true;
+                      winAmount = betNumber.amount * game.rates.singleDigit;
+                  }
+              } else if (bet.betType === 'jodi') {
+                  if (result.openResult !== null && result.closeResult !== null) {
+                      const jodiNumber = parseInt(`${result.openResult}${result.closeResult}`);
+                      
+                      if (betNumber.number === jodiNumber) {
+                          numberWon = true;
+                          winAmount = betNumber.amount * game.rates.jodiDigit;
+                      }
+                  }
+              }
+              
+              if (numberWon) {
+                  hasWon = true;
+                  totalWinningAmount += winAmount;
+                  winningNumbers.push({
+                      number: betNumber.number,
+                      amount: betNumber.amount,
+                      winAmount: winAmount
+                  });
+              }
+          }
+          
+          // Update bet
+          bet.status = hasWon ? 'won' : 'lost';
+          bet.winningAmount = totalWinningAmount;
+          bet.isWinner = hasWon;
+          bet.winningNumbers = winningNumbers;
+          bet.resultNumber = bet.betType === 'single' 
+              ? (bet.session === 'open' ? result.openResult : result.closeResult)
+              : parseInt(`${result.openResult}${result.closeResult}`);
+          
+          await bet.save();
+          
+          // Update user wallet if won
+          if (hasWon && totalWinningAmount > 0) {
+              await User.findByIdAndUpdate(bet.user._id, {
+                  $inc: {
+                      'wallet.balance': totalWinningAmount,
+                      'wallet.totalWinnings': totalWinningAmount
+                  }
+              });
+              
+              winnersCount++;
+              totalWinningsDistributed += totalWinningAmount;
+          }
+          
+          processedBets++;
+      }
+      
+      res.json({
+          success: true,
+          message: 'Game results processed successfully',
+          data: {
+              gameId,
+              date,
+              processedBets,
+              winnersCount,
+              totalWinningsDistributed,
+              gameResult: {
+                  openResult: result.openResult,
+                  closeResult: result.closeResult
+              }
+          }
+      });
+      
+  } catch (error) {
+      console.error('Error processing game results:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// Get user betting summary
+router.get('/user-betting-summary/:userId', authMiddleware, async (req, res) => {
+  try {
+      const { userId } = req.params;
+      const { startDate, endDate } = req.query;
+      
+      // Build date filter
+      let dateFilter = {};
+      if (startDate && endDate) {
+          dateFilter = {
+              betDate: {
+                  $gte: new Date(startDate),
+                  $lte: new Date(endDate)
+              }
+          };
+      }
+      
+      // Get betting statistics
+      const [summary] = await Bet.aggregate([
+          {
+              $match: { user: new mongoose.Types.ObjectId(userId), ...dateFilter }
+          },
+          {
+              $group: {
+                  _id: null,
+                  totalBets: { $sum: 1 },
+                  totalAmount: { $sum: '$totalBetAmount' },
+                  totalWinnings: { $sum: '$winningAmount' },
+                  wonBets: { $sum: { $cond: ['$isWinner', 1, 0] } },
+                  lostBets: { $sum: { $cond: ['$isWinner', 0, 1] } },
+                  pendingBets: { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } }
+              }
+          }
+      ]);
+      
+      // Get game-wise summary
+      const gameWiseSummary = await Bet.aggregate([
+          {
+              $match: { user: new mongoose.Types.ObjectId(userId), ...dateFilter }
+          },
+          {
+              $lookup: {
+                  from: 'games',
+                  localField: 'game',
+                  foreignField: '_id',
+                  as: 'gameDetails'
+              }
+          },
+          {
+              $group: {
+                  _id: '$game',
+                  gameName: { $first: { $arrayElemAt: ['$gameDetails.name', 0] } },
+                  totalBets: { $sum: 1 },
+                  totalAmount: { $sum: '$totalBetAmount' },
+                  totalWinnings: { $sum: '$winningAmount' },
+                  wonBets: { $sum: { $cond: ['$isWinner', 1, 0] } }
+              }
+          }
+      ]);
+      
+      res.json({
+          success: true,
+          data: {
+              overall: summary || {
+                  totalBets: 0,
+                  totalAmount: 0,
+                  totalWinnings: 0,
+                  wonBets: 0,
+                  lostBets: 0,
+                  pendingBets: 0
+              },
+              gameWise: gameWiseSummary
+          }
+      });
+      
+  } catch (error) {
+      console.error('Error fetching betting summary:', error);
+      res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 
