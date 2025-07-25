@@ -1788,6 +1788,31 @@ router.get('/user-betting-summary/:userId', authMiddleware, async (req, res) => 
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
+// GET /transactions?type=deposit OR ?type=withdrawal
+router.get('/transactions-based', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.user._id; // ✅ get user ID from token
+    const { type } = req.query;  // ✅ type can be: deposit, withdrawal, bet, win, etc.
+
+    const filter = { user: userId };
+    
+    if (type) {
+      filter.type = type;
+    }
+
+    const transactions = await Transaction.find(filter)
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      message: 'Transactions fetched successfully',
+      transactions
+    });
+  } catch (error) {
+    console.error('Error fetching transactions:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 router.get('/user-won-games', authMiddleware, async (req, res) => {
   try {
     const userId = req.user._id; // ✅ Get user ID from token
