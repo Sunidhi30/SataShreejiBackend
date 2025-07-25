@@ -1153,7 +1153,7 @@ router.get('/user-gaming-history', authMiddleware, async (req, res) => {
           totalInvested: 0
         };
       }
-      gameInvestments[gameId].totalInvested += bet.betAmount;
+      gameInvestments[gameId].totalInvested += bet.totalBetAmount;
     });
 
     // 📝 Step 3: Format response
@@ -1847,5 +1847,4 @@ router.get('/user-won-games', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
-
 module.exports = router;
