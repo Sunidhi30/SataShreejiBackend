@@ -423,11 +423,11 @@ router.post('/games/:gameId/bet', authMiddleware, async (req, res) => {
 
     // ✅ Deduct wallet balance
     user.wallet.balance -= betAmount;
-    const admin = await Admin.findOne({ role: 'admin' });
-if (admin) {
-  admin.bidAmount += betAmount;
-  await admin.save();
-}
+  // ✅ Atomically update admin's bidAmount
+await Admin.findOneAndUpdate(
+  { role: 'admin' },
+  { $inc: { bidAmount: betAmount } }
+);
     await user.save();
 
     // ✅ Check if user already has a bet for this game
