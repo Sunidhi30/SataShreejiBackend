@@ -1619,11 +1619,11 @@ router.post('/check-results', authMiddleware, async (req, res) => {
           multiplierUsed = game.rates.singleDigit;
         }
 
-        if (jodiMatch) {
-          numberWon = true;
-          winAmount += amount * game.rates.jodiDigit;
-          multiplierUsed = game.rates.jodiDigit;
-        }
+        // if (jodiMatch) {
+        //   numberWon = true;
+        //   winAmount += amount * game.rates.jodiDigit;
+        //   multiplierUsed = game.rates.jodiDigit;
+        // }
 
         if (numberWon) {
           hasWon = true;
