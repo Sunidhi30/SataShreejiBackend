@@ -1042,17 +1042,59 @@ router.post('/wallet/withdraw', authMiddleware, async (req, res) => {
   }
 });
 // GET /api/games/declared
+// router.get('/games-test/declared', async (req, res) => {
+//   try {
+//     // Find all results where declaredAt exists (results declared)
+//     const declaredResults = await Result.find({ declaredAt: { $ne: null } })
+//       .populate('gameId', 'name openTime closeTime resultTime currentResult') // populate game details
+//       .sort({ declaredAt: -1 }); // latest first
+
+//     // Map through results to add winners count
+//     const gamesWithWinners = await Promise.all(
+//       declaredResults.map(async (result) => {
+//         // Count winners for this gameId and result
+//         const winnerCount = await GameWin.countDocuments({
+//           gameId: result.gameId._id,
+//           resultId: result._id
+//         });
+
+//         return {
+//           gameName: result.gameId.name,
+//           luckyNumber: result.openResult || result.closeResult || result.spinnerResult,
+//           openTime: result.gameId.openTime,
+//           closeTime: result.gameId.closeTime,
+//           resultTime: result.gameId.resultTime,
+//           declaredAt: result.declaredAt,
+//           totalWinners: winnerCount
+//         };
+//       })
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       count: gamesWithWinners.length,
+//       data: gamesWithWinners
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({
+//       success: false,
+//       message: 'Failed to fetch declared games',
+//       error: error.message
+//     });
+//   }
+// });
 router.get('/games-test/declared', async (req, res) => {
   try {
-    // Find all results where declaredAt exists (results declared)
     const declaredResults = await Result.find({ declaredAt: { $ne: null } })
-      .populate('gameId', 'name openTime closeTime resultTime currentResult') // populate game details
-      .sort({ declaredAt: -1 }); // latest first
+      .populate('gameId', 'name openTime closeTime resultTime currentResult') // only necessary fields
+      .sort({ declaredAt: -1 });
 
-    // Map through results to add winners count
     const gamesWithWinners = await Promise.all(
       declaredResults.map(async (result) => {
-        // Count winners for this gameId and result
+        // If gameId is null (broken reference), skip this result
+        if (!result.gameId) return null;
+
         const winnerCount = await GameWin.countDocuments({
           gameId: result.gameId._id,
           resultId: result._id
@@ -1070,11 +1112,15 @@ router.get('/games-test/declared', async (req, res) => {
       })
     );
 
+    // Filter out null entries (where gameId was missing)
+    const filteredGames = gamesWithWinners.filter((g) => g !== null);
+
     res.status(200).json({
       success: true,
-      count: gamesWithWinners.length,
-      data: gamesWithWinners
+      count: filteredGames.length,
+      data: filteredGames
     });
+
   } catch (error) {
     console.error(error);
     res.status(500).json({
@@ -1084,6 +1130,7 @@ router.get('/games-test/declared', async (req, res) => {
     });
   }
 });
+
 // ✅ GET /api/games/user-regular
 router.get('/user-gaming-history', authMiddleware, async (req, res) => {
   try {
