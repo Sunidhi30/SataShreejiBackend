@@ -1850,4 +1850,5 @@ router.get('/user-won-games', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
+
 module.exports = router;

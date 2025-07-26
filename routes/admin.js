@@ -56,6 +56,86 @@ const authMiddleware = async (req, res, next) => {
         res.status(401).json({ message: 'Token is not valid' });
       }
 };
+// Add this function to check and publish draft results
+const publishScheduledResults = async () => {
+  try {
+    const now = new Date();
+    const draftResults = await Result.find({
+      status: 'draft',
+      scheduledPublishTime: { $lte: now }
+    }).populate('gameId');
+
+    for (const result of draftResults) {
+      // Update the result status
+      result.status = 'published';
+      result.declaredAt = now;
+      await result.save();
+
+      // Run the same bet update logic as in your original route
+      const { gameId, date, openResult, closeResult } = result;
+
+      if (openResult !== undefined) {
+        await Bet.updateMany(
+          { 
+            gameId: gameId._id, 
+            date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+            session: 'open',
+            status: 'pending'
+          },
+          [
+            {
+              $set: {
+                status: { $cond: [{ $eq: ['$number', openResult] }, 'won', 'lost'] },
+                winAmount: { $cond: [{ $eq: ['$number', openResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+                resultDate: now
+              }
+            }
+          ]
+        );
+      }
+
+      if (closeResult !== undefined) {
+        await Bet.updateMany(
+          { 
+            gameId: gameId._id, 
+            date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+            session: 'close',
+            status: 'pending'
+          },
+          [
+            {
+              $set: {
+                status: { $cond: [{ $eq: ['$number', closeResult] }, 'won', 'lost'] },
+                winAmount: { $cond: [{ $eq: ['$number', closeResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+                resultDate: now
+              }
+            }
+          ]
+        );
+      }
+
+      // Update user balances for winning bets
+      const winningBets = await Bet.find({
+        gameId: gameId._id,
+        date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+        status: 'won'
+      });
+
+      for (const bet of winningBets) {
+        await User.findByIdAndUpdate(bet.userId, {
+          $inc: { balance: bet.winAmount, totalWinnings: bet.winAmount }
+        });
+      }
+
+      console.log(`Published scheduled result for game ${gameId.name}`);
+    }
+  } catch (error) {
+    console.error('Error publishing scheduled results:', error);
+  }
+};
+
+// Run the scheduler every minute
+setInterval(publishScheduledResults, 60000);
 const upload = require("../utils/upload");
 // === ADMIN SIGNUP ===
 router.post('/signup', async (req, res) => {
@@ -852,6 +932,101 @@ router.post('/games/:gameId/results', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// Declare result
+router.post('/testing-games/:gameId/results', adminAuth, async (req, res) => {
+  try {
+    const { date, openResult, closeResult, spinnerResult } = req.body;
+    const gameId = req.params.gameId;
+
+     // Fetch the game to access the scheduled resultDateTime
+     const game = await Game.findById(gameId);
+     if (!game) {
+       return res.status(404).json({ message: 'Game not found' });
+     }
+ 
+     // Check if current time is before the game's scheduled result time
+     const now = new Date();
+     const isDraft = now < new Date(game.resultDateTime);
+     
+     const result = new Result({   
+      gameId: req.params.gameId,
+      date: new Date(date),
+      openResult,
+      closeResult,
+      spinnerResult,
+      status: isDraft ? 'draft' : 'published',  // ⬅️ Set status based on timing
+      scheduledPublishTime: isDraft ? game.resultDateTime : undefined  // ⬅️ Set schedule time if draft
+    });
+
+    await result.save();
+
+    // Only update bets and balances if not a draft
+    if (!isDraft) {
+      // Update bet results
+      if (openResult !== undefined) {
+        await Bet.updateMany(
+          { 
+            gameId: req.params.gameId, 
+            date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+            session: 'open',
+            status: 'pending'
+          },
+          [
+            {
+              $set: {
+                status: { $cond: [{ $eq: ['$number', openResult] }, 'won', 'lost'] },
+                winAmount: { $cond: [{ $eq: ['$number', openResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+                resultDate: new Date()
+              }
+            }
+          ]
+        );
+      }
+
+      if (closeResult !== undefined) {
+        await Bet.updateMany(
+          { 
+            gameId: req.params.gameId, 
+            date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+            session: 'close',
+            status: 'pending'
+          },
+          [
+            {
+              $set: {
+                status: { $cond: [{ $eq: ['$number', closeResult] }, 'won', 'lost'] },
+                winAmount: { $cond: [{ $eq: ['$number', closeResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+                resultDate: new Date()
+              }
+            }
+          ]
+        );
+      }
+
+      // Update user balances for winning bets
+      const winningBets = await Bet.find({
+        gameId: req.params.gameId,
+        date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+        status: 'won'
+      });
+
+      for (const bet of winningBets) {
+        await User.findByIdAndUpdate(bet.userId, {
+          $inc: { balance: bet.winAmount, totalWinnings: bet.winAmount }
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: isDraft ? 'Result saved as draft and will be published automatically' : 'Result declared successfully',
+      result,
+      isDraft  // ⬅️ Let frontend know if it's a draft
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 // Get bets for a game
 router.get('/games/:gameId/bets', adminAuth, async (req, res) => {
   try {
@@ -1227,7 +1402,6 @@ router.get('/testing/:gameId/investors', async (req, res) => {
     });
   }
 });
-
 
 // API to get bets by game for a user
 router.get('/user-bets/game/:gameId', async (req, res) => {

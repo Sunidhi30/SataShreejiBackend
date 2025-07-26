@@ -23,6 +23,14 @@ const resultSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    status: {  // ⬅️ Add this field
+      type: String,
+      enum: ['draft', 'published'],
+      default: 'published'
+    },
+    scheduledPublishTime: {  // ⬅️ Add this field
+      type: Date
+    },
     declaredAt: {
       type: Date,
       default: Date.now
