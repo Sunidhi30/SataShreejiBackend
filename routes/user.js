@@ -56,9 +56,10 @@ const uploadToCloudinary = (fileBuffer) => {
       });
 };
 // Update User Details API (with profile image upload)
-router.put('/update/:userId', upload.single('profileImage'), async (req, res) => {
+router.put('/update',  authMiddleware,upload.single('profileImage'), async (req, res) => {
   try {
-    const userId = req.params.userId;
+    const userId =req.user._id
+   
     const {
       username,
       email,
@@ -274,47 +275,7 @@ router.get('/games', authMiddleware, async (req, res) => {
   }
 });
 
-// router.get('/games', authMiddleware, async (req, res) => {
-//   try {
-//     const userId = req.user._id; // ✅ Get logged-in user
 
-//     // 🔥 Step 1: Get all active games
-//     const activeGames = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
-
-//     // 🔥 Step 2: Add game status (open/closed) and participant count
-//     const enrichedGames = await Promise.all(
-//       activeGames.map(async (game) => {
-//         const now = new Date();
-
-//         const isOpen = now >= game.openDateTime && now <= game.closeDateTime;
-//         const gameStatus = isOpen ? 'open' : 'closed';
-
-//         const startOfDay = new Date();
-//         startOfDay.setHours(0, 0, 0, 0); // midnight today
-
-//         const totalParticipants = await Bet.countDocuments({
-//           game: game._id,
-//           betDate: { $gte: startOfDay } // only today's participants
-//         });
-
-//         return {
-//           ...game.toObject(),
-//           gameStatus,
-//           totalParticipants
-//         };
-//       })
-//     );
-
-//     // ✅ Send response
-//     res.json({
-//       message: 'Games retrieved successfully',
-//       games: enrichedGames
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
 // // Get All Games
 // router.get('/games', authMiddleware, async (req, res) => {
 //   try {
@@ -991,7 +952,6 @@ router.get('/settings', authMiddleware, async (req, res) => {
   }
 });
 // winning for the users check
-
 // 🪙 GET /api/user/wallet
 router.get('/wallet', authMiddleware, async (req, res) => {
   try {
@@ -1274,13 +1234,6 @@ router.get('/notices', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-
-
-
-
-
-
 // API to get all bets for a particular user
 router.get('/user-bets/:userId', authMiddleware, async (req, res) => {
   try {
@@ -1321,7 +1274,6 @@ router.get('/user-bets/:userId', authMiddleware, async (req, res) => {
       res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
-
 // API to get bets by game for a user
 router.get('/user-bets/game/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -1759,7 +1711,6 @@ router.post('/check-results', authMiddleware, async (req, res) => {
     });
   }
 });
-
 // Get user betting summary
 router.get('/user-betting-summary/:userId', authMiddleware, async (req, res) => {
   try {
