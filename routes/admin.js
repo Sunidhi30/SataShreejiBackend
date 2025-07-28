@@ -750,7 +750,6 @@ router.delete('/games/:id', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // 4. GAME RATES MANAGEMENT
 // =======
 router.get('/games/:gameId/rates', adminAuth, async (req, res) => {

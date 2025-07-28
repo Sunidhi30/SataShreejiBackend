@@ -10,8 +10,13 @@ app.use(express.json());
 //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS','PATCH'],
 //   allowedHeaders: ['Content-Type', 'Authorization']
 // }));
-app.use(cors({ origin: '*' }));
-
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 600
+}));
 require('dotenv').config()
 db();
 db().then(function (db) {
