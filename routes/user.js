@@ -164,14 +164,43 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// Get Today's Lucky Number
+// // Get Today's Lucky Number
+// router.get('/testing-today-number', authMiddleware, async (req, res) => {
+//   try {
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     const todayResult = await Result.findOne({
+//       date: { $gte: today }
+//     }).populate('gameId').sort({ declaredAt: -1 });
+
+//     if (!todayResult) {
+//       return res.json({
+//         message: 'No result declared for today yet',
+//         luckyNumber: null,
+//         nextResultTime: null
+//       });
+//     }
+
+//     res.json({
+//       message: 'Today\'s lucky number retrieved',
+//       luckyNumber: todayResult.openResult || todayResult.closeResult,
+//       game: todayResult.gameId.name,
+//       declaredAt: todayResult.declaredAt
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 router.get('/today-number', authMiddleware, async (req, res) => {
   try {
+    const now = new Date();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const todayResult = await Result.findOne({
-      date: { $gte: today }
+      date: { $gte: today },
+      status: 'published' // optional filter if you want only published ones
     }).populate('gameId').sort({ declaredAt: -1 });
 
     if (!todayResult) {
@@ -179,6 +208,17 @@ router.get('/today-number', authMiddleware, async (req, res) => {
         message: 'No result declared for today yet',
         luckyNumber: null,
         nextResultTime: null
+      });
+    }
+
+    const resultTime = todayResult.scheduledPublishTime || todayResult.gameId?.resultDateTime;
+
+    if (!resultTime || now < resultTime) {
+      return res.json({
+        message: 'Result not declared yet',
+        luckyNumber: null,
+        game: todayResult.gameId?.name,
+        resultWillBeDeclaredAt: resultTime
       });
     }
 
@@ -192,6 +232,7 @@ router.get('/today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
 // Get Today's Lucky Number
 router.get('/timings-today-number', authMiddleware, async (req, res) => {
   try {
@@ -211,13 +252,25 @@ router.get('/timings-today-number', authMiddleware, async (req, res) => {
       const nextGame = await Game.findOne({
         resultDateTime: { $gte: now },
         status: 'active'
-      }).sort({ resultDateTime: 1 }); // Nearest upcoming game
+      }).sort({ resultDateTime: 1 });
 
       return res.json({
         message: 'No result declared for today yet',
         luckyNumber: null,
         nextResultTime: nextGame ? nextGame.resultDateTime : null,
         nextGame: nextGame ? nextGame.name : null
+      });
+    }
+
+    // Ensure the result is not shown before the game's resultDateTime
+    const resultTime = todayResult.gameId.resultDateTime;
+
+    if (now < resultTime) {
+      return res.json({
+        message: 'Result not declared yet',
+        luckyNumber: null,
+        resultWillBeDeclaredAt: resultTime,
+        game: todayResult.gameId.name
       });
     }
 
@@ -233,6 +286,47 @@ router.get('/timings-today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// router.get('/timings-today-number', authMiddleware, async (req, res) => {
+//   try {
+//     const now = new Date();
+//     const startOfDay = new Date();
+//     startOfDay.setHours(0, 0, 0, 0);
+
+//     // Find the most recent result declared today
+//     const todayResult = await Result.findOne({
+//       date: { $gte: startOfDay }
+//     })
+//       .populate('gameId')
+//       .sort({ declaredAt: -1 });
+
+//     if (!todayResult) {
+//       // No result yet: find the next upcoming game's result time
+//       const nextGame = await Game.findOne({
+//         resultDateTime: { $gte: now },
+//         status: 'active'
+//       }).sort({ resultDateTime: 1 }); // Nearest upcoming game
+
+//       return res.json({
+//         message: 'No result declared for today yet',
+//         luckyNumber: null,
+//         nextResultTime: nextGame ? nextGame.resultDateTime : null,
+//         nextGame: nextGame ? nextGame.name : null
+//       });
+//     }
+
+//     // Result is available
+//     res.json({
+//       message: 'Today\'s lucky number retrieved',
+//       luckyNumber: todayResult.openResult || todayResult.closeResult,
+//       game: todayResult.gameId.name,
+//       declaredAt: todayResult.declaredAt
+//     });
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 router.get('/games', authMiddleware, async (req, res) => {
   try {
     const userId = req.user._id;
