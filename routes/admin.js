@@ -730,13 +730,10 @@ router.put('/games/:id', async (req, res) => {
   }
 });
 // Delete game
-router.delete('/games/:id', async (req, res) => {
+// Hard delete a game by ID
+router.delete('/testing-games/:id', async (req, res) => {
   try {
-    const game = await Game.findByIdAndUpdate(
-      req.params.id,
-      { isDeleted: true },
-      { new: true }
-    );
+    const game = await Game.findByIdAndDelete(req.params.id);
 
     if (!game) {
       return res.status(404).json({ message: 'Game not found' });
@@ -744,12 +741,15 @@ router.delete('/games/:id', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Game deleted successfully'
+      message: 'Game permanently deleted',
+      game
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+
 // 4. GAME RATES MANAGEMENT
 // =======
 router.get('/games/:gameId/rates', adminAuth, async (req, res) => {
@@ -2110,7 +2110,6 @@ router.post('/admin/hardgame/create', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Admin declares result for Hard Game
 router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
   try {
@@ -2130,9 +2129,9 @@ router.post('/admin/hardgame/declare', adminAuth, async (req, res) => {
       status: 'pending'
     });
 
-    if (userBets.length === 0) {
-      return res.status(404).json({ message: 'No pending bets found for this hard game' });
-    }
+    // if (userBets.length === 0) {
+    //   return res.status(404).json({ message: 'No pending bets found for this hard game' });
+    // }
 
     let winners = 0;
     for (const bet of userBets) {
