@@ -706,7 +706,7 @@ router.post('/games', adminAuth, async (req, res) => {
 // });
 // Update game
 
-router.put('/games/:id', adminAuth, async (req, res) => {
+router.put('/games/:id', async (req, res) => {
   try {
     const { name, type, openTime, closeTime, resultTime, status } = req.body;
     
@@ -730,7 +730,7 @@ router.put('/games/:id', adminAuth, async (req, res) => {
   }
 });
 // Delete game
-router.delete('/games/:id', adminAuth, async (req, res) => {
+router.delete('/games/:id', async (req, res) => {
   try {
     const game = await Game.findByIdAndUpdate(
       req.params.id,
