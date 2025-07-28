@@ -6,7 +6,7 @@ const SpinnerGame = require('../models/SpinnerGame');
 const UserSpinHistory = require('../models/UserSpinHistory');
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
-
+const Admin = require("../models/Admin")
 const authMiddleware = async (req, res, next) => {
   try {
     const token = req.header('Authorization')?.replace('Bearer ', '');
