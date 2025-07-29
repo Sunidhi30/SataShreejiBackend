@@ -59,7 +59,6 @@ const uploadToCloudinary = (fileBuffer) => {
 router.put('/update',  authMiddleware,upload.single('profileImage'), async (req, res) => {
   try {
     const userId =req.user._id
-   
     const {
       username,
       email,
@@ -67,7 +66,6 @@ router.put('/update',  authMiddleware,upload.single('profileImage'), async (req,
       password,
       paymentDetails
     } = req.body;
-
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
@@ -239,7 +237,6 @@ router.get('/today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // Get Today's Lucky Number
 router.get('/timings-today-number', authMiddleware, async (req, res) => {
   try {
@@ -293,7 +290,6 @@ router.get('/timings-today-number', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // router.get('/timings-today-number', authMiddleware, async (req, res) => {
 //   try {
 //     const now = new Date();
@@ -375,68 +371,6 @@ router.get('/games', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
-// // Get All Games
-// router.get('/games', authMiddleware, async (req, res) => {
-//   try {
-//     const userId = req.user._id; // 👈 Get the logged-in user's ID
-
-//     // Step 1: Find all active games
-//     const games = await Game.find({ status: 'active' }).sort({ createdAt: -1 });
-
-//     // Step 2: Filter out games where user has already placed a bet today
-//     const startOfDay = new Date();
-//     startOfDay.setHours(0, 0, 0, 0); // midnight today
-
-//     const userBets = await Bet.find({
-//       user: userId,
-//       betDate: { $gte: startOfDay }
-//     }).select('game'); // only get the game IDs the user bet on
-
-//     const betGameIds = userBets.map(bet => bet.game.toString()); // array of game IDs user bet on
-
-//     const gamesUserNotInvested = games.filter(game =>
-//       !betGameIds.includes(game._id.toString())
-//     );
-
-//     // Step 3: Add open/closed status and total participants
-//     const gamesWithStatus = await Promise.all(
-//       gamesUserNotInvested.map(async (game) => {
-//         const currentTime = new Date();
-
-//         // Directly use openDateTime and closeDateTime
-//         const openTime = new Date(game.openDateTime);
-//         const closeTime = new Date(game.closeDateTime);
-
-//         let gameStatus = 'closed';
-//         if (currentTime >= openTime && currentTime <= closeTime) {
-//           gameStatus = 'open';
-//         }
-
-//         const totalParticipants = await Bet.countDocuments({
-//           game: game._id,
-//           betDate: { $gte: startOfDay }
-//         });
-
-//         return {
-//           ...game.toObject(),
-//           gameStatus,
-//           totalParticipants
-//         };
-//       })
-//     );
-
-//     res.json({
-//       message: 'Games retrieved successfully',
-//       games: gamesWithStatus
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
-
 // Get Game Details
 router.get('/games/:gameId', authMiddleware, async (req, res) => {
   try {
@@ -719,7 +653,6 @@ router.get('/games/:gameId/my-bets', authMiddleware, async (req, res) => {
 //     res.status(500).json({ message: "Server error", error: err.message });
 //   }
 // });
-
 // ==============================================
 // Get Hard Game Status
 router.get('/hard-game/status', authMiddleware, async (req, res) => {
@@ -963,9 +896,6 @@ router.get('/results/history', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// ==============================================
-// ACCOUNT MANAGEMENT ROUTES
-// ==============================================
 // Get User Profile
 router.get('/profile', authMiddleware, async (req, res) => {
   try {
@@ -1017,9 +947,6 @@ router.put('/profile', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// ==============================================
-// REFERRAL SYSTEM ROUTES
-// ==============================================
 // Get Referral Details
 router.get('/referral', authMiddleware, async (req, res) => {
   try {
@@ -1047,9 +974,6 @@ router.get('/referral', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// ==============================================
-// SETTINGS AND UTILITIES
-// ==============================================
 // Get App Settings
 router.get('/settings', authMiddleware, async (req, res) => {
   try {
@@ -1247,7 +1171,6 @@ router.get('/games-test/declared', async (req, res) => {
     });
   }
 });
-
 // ✅ GET /api/games/user-regular
 router.get('/user-gaming-history', authMiddleware, async (req, res) => {
   try {
@@ -2014,8 +1937,6 @@ router.get('/user-won-games', authMiddleware, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
-
-
 // Optional: Add a route to check potential referral bonus
 router.get('/referral/bonus-preview/:referralCode', async (req, res) => {
   try {
@@ -2049,5 +1970,4 @@ router.get('/referral-code',  authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching referral code' });
   }
 });
-
 module.exports = router;

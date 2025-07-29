@@ -40,8 +40,8 @@ const resultSchema = new mongoose.Schema({
     expiresAt: {
       type: Date,
       default: function() {
-        // return new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
-        return new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+        return new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours from now
+        // return new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
 
       },
       expires: 0 // MongoDB TTL index
