@@ -72,7 +72,14 @@ router.put('/update',  authMiddleware,upload.single('profileImage'), async (req,
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-
+ // ✅ Check if new username already exists (and not same user)
+ if (username && username !== user.username) {
+  const existingUser = await User.findOne({ username });
+  if (existingUser) {
+    return res.status(400).json({ message: 'Username already taken' });
+  }
+  user.username = username;
+}
     // ✅ Upload profile image to Cloudinary if provided
     if (req.file) {
       const result = await uploadToCloudinary(req.file.buffer);
@@ -850,9 +857,6 @@ router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-// ==============================================
-// RESULTS & HISTORY ROUTES
-// ==============================================
 // Get Live Results
 // router.get('/results/live', authMiddleware, async (req, res) => {
 //   try {
