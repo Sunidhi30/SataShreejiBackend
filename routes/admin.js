@@ -731,6 +731,23 @@ router.put('/games/:id', async (req, res) => {
 });
 // Delete game
 // Hard delete a game by ID
+// router.delete('/testing-games/:id', async (req, res) => {
+//   try {
+//     const game = await Game.findByIdAndDelete(req.params.id);
+
+//     if (!game) {
+//       return res.status(404).json({ message: 'Game not found' });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Game permanently deleted',
+//       game
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 router.delete('/testing-games/:id', async (req, res) => {
   try {
     const game = await Game.findByIdAndDelete(req.params.id);
@@ -739,16 +756,21 @@ router.delete('/testing-games/:id', async (req, res) => {
       return res.status(404).json({ message: 'Game not found' });
     }
 
+    // Delete related results
+    await Result.deleteMany({ gameId: game._id });
+
+    // Delete related bets
+    await Bet.deleteMany({ gameId: game._id });
+
     res.json({
       success: true,
-      message: 'Game permanently deleted',
+      message: 'Game and associated results/bets deleted successfully',
       game
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 
 // 4. GAME RATES MANAGEMENT
 // =======
@@ -1648,6 +1670,89 @@ router.get('/transactions/pending',  adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// router.post('/transactionss/:transactionId/action', adminAuth, async (req, res) => {
+//   try {
+//     const { transactionId } = req.params;
+//     const { action, adminNotes } = req.body;
+
+//     const transaction = await Transaction.findById(transactionId);
+//     if (!transaction) {
+//       return res.status(404).json({ message: 'Transaction not found' });
+//     }
+
+//     if (transaction.status !== 'pending' && transaction.status !== 'admin_pending') {
+//       return res.status(400).json({ message: 'Transaction is not pending' });
+//     }
+
+//     // Process based on admin's action
+//     if (action === 'approve') {
+//       transaction.status = 'completed';
+//       transaction.adminNotes = adminNotes;
+//       transaction.processedAt = new Date();
+//       transaction.processedBy = req.admin._id;
+
+//       // Update user wallet
+//       const user = await User.findById(transaction.user);
+//       if (!user) {
+//         return res.status(404).json({ message: 'User not found' });
+//       }
+
+//       if (transaction.type === 'deposit') {
+//         user.wallet.balance += transaction.amount;
+//         user.wallet.totalDeposits += transaction.amount;
+
+//         // Check if user was referred by someone
+//         if (user.referredBy) {
+//           const referrer = await User.findById(user.referredBy);
+//           if (referrer) {
+//             const bonusAmount = Math.floor(transaction.amount * 0.05); // 5% referral bonus
+//             if (bonusAmount > 0) {
+//               referrer.referralEarnings += bonusAmount;
+//               referrer.wallet.commission += bonusAmount;
+//               await referrer.save();
+
+//               // Log referral bonus transaction
+//               const referralTransaction = new Transaction({
+//                 user: referrer._id,
+//                 type: 'referral',
+//                 amount: bonusAmount,
+//                 paymentMethod: 'wallet',
+//                 description: `5% referral commission from ${user.username || user.email}'s deposit`,
+//                 status: 'completed',
+//                 processedAt: new Date()
+//               });
+//               await referralTransaction.save();
+//             }
+//           }
+//         }
+//       }
+
+//       await user.save();
+//     } else if (action === 'reject') {
+//       transaction.status = 'failed';
+//       transaction.adminNotes = adminNotes;
+//       transaction.processedAt = new Date();
+//       transaction.processedBy = req.admin._id;
+//     } else {
+//       return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'reject'." });
+//     }
+
+//     await transaction.save();
+
+//     res.json({
+//       message: `Transaction ${action}ed successfully`,
+//       transaction: {
+//         id: transaction._id,
+//         status: transaction.status,
+//         processedAt: transaction.processedAt
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
+
+// Updated admin transaction approval route (remove old referral bonus logic)
 router.post('/transactions/:transactionId/action', adminAuth, async (req, res) => {
   try {
     const { transactionId } = req.params;
@@ -1659,60 +1764,73 @@ router.post('/transactions/:transactionId/action', adminAuth, async (req, res) =
     }
 
     if (transaction.status !== 'pending' && transaction.status !== 'admin_pending') {
-  return res.status(400).json({ message: 'Transaction is not pending' });
-}
-
+      return res.status(400).json({ message: 'Transaction is not pending' });
+    }
 
     // Process based on admin's action
-    if (action === 'approve') {
-      transaction.status = 'completed';
-      transaction.adminNotes = adminNotes;
-      transaction.processedAt = new Date();
-   transaction.processedBy = req.admin._id;
+   // inside the approve block
+if (action === 'approve') {
+  transaction.status = 'completed';
+  transaction.adminNotes = adminNotes;
+  transaction.processedAt = new Date();
+  transaction.processedBy = req.admin._id;
 
+  // Update user wallet
+  const user = await User.findById(transaction.user);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
 
-      // Update user wallet
-      const user = await User.findById(transaction.user);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
+  if (transaction.type === 'deposit') {
+    user.wallet.balance += transaction.amount;
+    user.wallet.totalDeposits += transaction.amount;
 
-      if (transaction.type === 'deposit') {
-        user.wallet.balance += transaction.amount;
-        user.wallet.totalDeposits += transaction.amount;
+    console.log(`Deposited ₹${transaction.amount} to ${user.username || user.email}`);
+    console.log(`Updated wallet balance: ₹${user.wallet.balance}`);
 
-        // Handle first deposit referral bonus
-        if (user.referredBy && user.wallet.totalDeposits === transaction.amount) {
-          const referrer = await User.findById(user.referredBy);
-          if (referrer) {
-            const settings = await Settings.findOne({});
-            const referralBonus = settings?.referralBonus || 50;
+    // Check if user was referred by someone
+    if (user.referredBy) {
+      const referrer = await User.findById(user.referredBy);
+      if (referrer) {
+        const bonusAmount = Math.floor(transaction.amount * 0.05); // 5% referral bonus
+        console.log(`User ${user.username || user.email} was referred by ${referrer.username || referrer.email}`);
+        console.log(`Referral Bonus Calculated: ₹${bonusAmount}`);
 
-            referrer.wallet.balance += referralBonus;
-            referrer.referralEarnings += referralBonus;
-            await referrer.save();
+        if (bonusAmount > 0) {
+          referrer.referralEarnings += bonusAmount;
+          referrer.wallet.commission += bonusAmount;
 
-            // Create referral bonus transaction
-            const referralTransaction = new Transaction({
-              user: referrer._id,
-              type: 'referral_bonus',
-              amount: referralBonus,
-              paymentMethod: 'wallet',
-              description: `Referral bonus for ${user.username || user.email}`,
-              status: 'completed'
-            });
-            await referralTransaction.save();
-          }
+          console.log(`Before saving: ${referrer.username || referrer.email} had ₹${referrer.wallet.commission - bonusAmount} commission`);
+          console.log(`After saving: ${referrer.username || referrer.email} will have ₹${referrer.wallet.commission} commission`);
+          
+          await referrer.save();
+
+          // Log referral bonus transaction
+          const referralTransaction = new Transaction({
+            user: referrer._id,
+            type: 'referral',
+            amount: bonusAmount,
+            paymentMethod: 'wallet',
+            description: `5% referral commission from ${user.username || user.email}'s deposit`,
+            status: 'completed',
+            processedAt: new Date()
+          });
+
+          await referralTransaction.save();
+          console.log(`Referral transaction saved: ₹${bonusAmount} to ${referrer.username || referrer.email}`);
         }
+      } else {
+        console.log(`ReferredBy ID not found: ${user.referredBy}`);
       }
+    }
+  }
 
-      await user.save();
+  await user.save();
     } else if (action === 'reject') {
       transaction.status = 'failed';
       transaction.adminNotes = adminNotes;
       transaction.processedAt = new Date();
-     transaction.processedBy = req.admin._id;
-
+      transaction.processedBy = req.admin._id;
     } else {
       return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'reject'." });
     }
@@ -1731,6 +1849,89 @@ router.post('/transactions/:transactionId/action', adminAuth, async (req, res) =
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// router.post('/transactions/:transactionId/action', adminAuth, async (req, res) => {
+//   try {
+//     const { transactionId } = req.params;
+//     const { action, adminNotes } = req.body;
+
+//     const transaction = await Transaction.findById(transactionId);
+//     if (!transaction) {
+//       return res.status(404).json({ message: 'Transaction not found' });
+//     }
+
+//     if (transaction.status !== 'pending' && transaction.status !== 'admin_pending') {
+//   return res.status(400).json({ message: 'Transaction is not pending' });
+// }
+
+
+//     // Process based on admin's action
+//     if (action === 'approve') {
+//       transaction.status = 'completed';
+//       transaction.adminNotes = adminNotes;
+//       transaction.processedAt = new Date();
+//    transaction.processedBy = req.admin._id;
+
+
+//       // Update user wallet
+//       const user = await User.findById(transaction.user);
+//       if (!user) {
+//         return res.status(404).json({ message: 'User not found' });
+//       }
+
+//       if (transaction.type === 'deposit') {
+//         user.wallet.balance += transaction.amount;
+//         user.wallet.totalDeposits += transaction.amount;
+
+//         // Handle first deposit referral bonus
+//         if (user.referredBy && user.wallet.totalDeposits === transaction.amount) {
+//           const referrer = await User.findById(user.referredBy);
+//           if (referrer) {
+//             const settings = await Settings.findOne({});
+//             const referralBonus = settings?.referralBonus || 50;
+
+//             referrer.wallet.balance += referralBonus;
+//             referrer.referralEarnings += referralBonus;
+//             await referrer.save();
+
+//             // Create referral bonus transaction
+//             const referralTransaction = new Transaction({
+//               user: referrer._id,
+//               type: 'referral_bonus',
+//               amount: referralBonus,
+//               paymentMethod: 'wallet',
+//               description: `Referral bonus for ${user.username || user.email}`,
+//               status: 'completed'
+//             });
+//             await referralTransaction.save();
+//           }
+//         }
+//       }
+
+//       await user.save();
+//     } else if (action === 'reject') {
+//       transaction.status = 'failed';
+//       transaction.adminNotes = adminNotes;
+//       transaction.processedAt = new Date();
+//      transaction.processedBy = req.admin._id;
+
+//     } else {
+//       return res.status(400).json({ message: "Invalid action. Must be 'approve' or 'reject'." });
+//     }
+
+//     await transaction.save();
+
+//     res.json({
+//       message: `Transaction ${action}ed successfully`,
+//       transaction: {
+//         id: transaction._id,
+//         status: transaction.status,
+//         processedAt: transaction.processedAt
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 //Get transaction statistics
 router.get('/transactions/stats',adminAuth, async (req, res) => {
   try {

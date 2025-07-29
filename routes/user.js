@@ -1992,4 +1992,29 @@ router.get('/user-won-games', authMiddleware, async (req, res) => {
   }
 });
 
+
+// Optional: Add a route to check potential referral bonus
+router.get('/referral/bonus-preview/:referralCode', async (req, res) => {
+  try {
+    const { referralCode } = req.params;
+    
+    const referrer = await User.findOne({ referralCode });
+    if (!referrer) {
+      return res.status(404).json({ message: 'Invalid referral code' });
+    }
+
+    const potentialBonus = Math.floor(referrer.wallet.totalDeposits * 0.05);
+    
+    res.json({
+      message: 'Referral bonus preview',
+      referrerUsername: referrer.username || referrer.email,
+      referrerTotalDeposits: referrer.wallet.totalDeposits,
+      potentialBonus: potentialBonus,
+      bonusPercentage: 5
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 module.exports = router;
