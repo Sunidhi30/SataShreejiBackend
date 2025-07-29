@@ -854,15 +854,34 @@ router.get('/testing-hardgame/history', authMiddleware, async (req, res) => {
 // RESULTS & HISTORY ROUTES
 // ==============================================
 // Get Live Results
+// router.get('/results/live', authMiddleware, async (req, res) => {
+//   try {
+//     const today = new Date();
+//     today.setHours(0, 0, 0, 0);
+
+//     const liveResults = await Result.find({
+//       date: { $gte: today }
+//     }).populate('gameId').sort({ declaredAt: -1 });
+
+//     res.json({
+//       message: 'Live results retrieved successfully',
+//       results: liveResults
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 router.get('/results/live', authMiddleware, async (req, res) => {
   try {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const now = new Date();
 
     const liveResults = await Result.find({
-      date: { $gte: today }
-    }).populate('gameId').sort({ declaredAt: -1 });
-
+      date: { $lte: now },       // Scheduled time has passed
+      expiresAt: { $gt: now },   // Not expired yet
+      status: 'published'
+    })
+    .populate('gameId')
+    .sort({ declaredAt: -1 });
     res.json({
       message: 'Live results retrieved successfully',
       results: liveResults

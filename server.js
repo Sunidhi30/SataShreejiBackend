@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const db = require('./utils/db')
 const app = express();
+const ResultScheduler = require('./utils/resultScheduler');
+
 app.use(express.json());
 // app.use(cors({
 //   origin: true,
@@ -22,6 +24,8 @@ db();
 db().then(function (db) {
   console.log(`Db connnected`)
 })
+ResultScheduler.init();
+
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const walletRoutes = require('./routes/transaction');

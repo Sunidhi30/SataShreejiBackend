@@ -17,6 +17,8 @@ const Notice = require("../models/Notice")
 const STATIC_ADMIN_PASSWORD = 'admin@21';
 const router = express.Router();
 const cloudinary = require("../utils/cloudinary")
+const ResultScheduler = require('../utils/resultScheduler');
+
 const { adminAuth } = require('../middleware/auth');
 const uploadToCloudinary = (fileBuffer) => {
       return new Promise((resolve, reject) => {
@@ -839,17 +841,27 @@ router.delete('/user/:userId', adminAuth, async (req, res) => {
 });
 // 5. RESULT MANAGEMENT
 // Get results for a game
+
+// Get results for a game (with active filter)
 router.get('/games/:gameId/results', adminAuth, async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, includeExpired = false } = req.query;
     
-    const results = await Result.find({ gameId: req.params.gameId })
+    let query = { gameId: req.params.gameId };
+    
+    // Optionally filter out expired results
+    if (!includeExpired) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      query.declaredAt = { $gt: twentyFourHoursAgo };
+    }
+    
+    const results = await Result.find(query)
       .populate('gameId', 'name')
       .sort({ date: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    const total = await Result.countDocuments({ gameId: req.params.gameId });
+    const total = await Result.countDocuments(query);
 
     res.json({
       success: true,
@@ -864,34 +876,158 @@ router.get('/games/:gameId/results', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+
+// router.get('/games/:gameId/results', adminAuth, async (req, res) => {
+//   try {
+//     const { page = 1, limit = 10 } = req.query;
+    
+//     const results = await Result.find({ gameId: req.params.gameId })
+//       .populate('gameId', 'name')
+//       .sort({ date: -1 })
+//       .limit(limit * 1)
+//       .skip((page - 1) * limit);
+
+//     const total = await Result.countDocuments({ gameId: req.params.gameId });
+
+//     res.json({
+//       success: true,
+//       results,
+//       pagination: {
+//         current: page,
+//         pages: Math.ceil(total / limit),
+//         total
+//       }
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
 // Declare result
+// router.post('/games/:gameId/results', adminAuth, async (req, res) => {
+//   try {
+//     const { date, openResult, closeResult, spinnerResult } = req.body;
+//     const gameId = req.params.gameId;
+
+//      // Fetch the game to access the scheduled resultDateTime
+//      const game = await Game.findById(gameId);
+//      if (!game) {
+//        return res.status(404).json({ message: 'Game not found' });
+//      }
+ 
+//      // Check if current time is before the game's scheduled result time
+//      const now = new Date();
+//      if (now < new Date(game.resultDateTime)) {
+//        return res.status(400).json({ message: 'Result cannot be declared before the scheduled result time' });
+//      }
+//     const result = new Result({   
+//       gameId: req.params.gameId,
+//       date: new Date(date),
+//       openResult,
+//       closeResult,
+//       spinnerResult
+//     });
+
+//     await result.save();
+
+//     // Update bet results
+//     if (openResult !== undefined) {
+//       await Bet.updateMany(
+//         { 
+//           gameId: req.params.gameId, 
+//           date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+//           session: 'open',
+//           status: 'pending'
+//         },
+//         [
+//           {
+//             $set: {
+//               status: { $cond: [{ $eq: ['$number', openResult] }, 'won', 'lost'] },
+//               winAmount: { $cond: [{ $eq: ['$number', openResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+//               resultDate: new Date()
+//             }
+//           }
+//         ]
+//       );
+//     }
+
+//     if (closeResult !== undefined) {
+//       await Bet.updateMany(
+//         { 
+//           gameId: req.params.gameId, 
+//           date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+//           session: 'close',
+//           status: 'pending'
+//         },
+//         [
+//           {
+//             $set: {
+//               status: { $cond: [{ $eq: ['$number', closeResult] }, 'won', 'lost'] },
+//               winAmount: { $cond: [{ $eq: ['$number', closeResult] }, { $multiply: ['$amount', '$rate'] }, 0] },
+//               resultDate: new Date()
+//             }
+//           }
+//         ]
+//       );
+//     }
+
+//     // Update user balances for winning bets
+//     const winningBets = await Bet.find({
+//       gameId: req.params.gameId,
+//       date: { $gte: new Date(date), $lt: new Date(new Date(date).getTime() + 24*60*60*1000) },
+//       status: 'won'
+//     });
+
+//     for (const bet of winningBets) {
+//       await User.findByIdAndUpdate(bet.userId, {
+//         $inc: { balance: bet.winAmount, totalWinnings: bet.winAmount }
+//       });
+//     }
+
+//     res.json({
+//       success: true,
+//       message: 'Result declared successfully',
+//       result
+//     });
+//   } catch (error) {
+//     res.status(500).json({ message: 'Server error', error: error.message });
+//   }
+// });
+
+// Declare result with auto-deletion
 router.post('/games/:gameId/results', adminAuth, async (req, res) => {
   try {
     const { date, openResult, closeResult, spinnerResult } = req.body;
     const gameId = req.params.gameId;
 
-     // Fetch the game to access the scheduled resultDateTime
-     const game = await Game.findById(gameId);
-     if (!game) {
-       return res.status(404).json({ message: 'Game not found' });
-     }
- 
-     // Check if current time is before the game's scheduled result time
-     const now = new Date();
-     if (now < new Date(game.resultDateTime)) {
-       return res.status(400).json({ message: 'Result cannot be declared before the scheduled result time' });
-     }
+    // Fetch the game to access the scheduled resultDateTime
+    const game = await Game.findById(gameId);
+    if (!game) {
+      return res.status(404).json({ message: 'Game not found' });
+    }
+
+    // Check if current time is before the game's scheduled result time
+    const now = new Date();
+    if (now < new Date(game.resultDateTime)) {
+      return res.status(400).json({ message: 'Result cannot be declared before the scheduled result time' });
+    }
+
     const result = new Result({   
       gameId: req.params.gameId,
       date: new Date(date),
       openResult,
       closeResult,
-      spinnerResult
+      spinnerResult,
+      declaredAt: new Date(),
+      // expiresAt is automatically set by schema default
     });
 
     await result.save();
 
-    // Update bet results
+
+    const deleteAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    ResultScheduler.scheduleResultDeletion(result._id, deleteAt);
+  
+    // Update bet results (existing logic)
     if (openResult !== undefined) {
       await Bet.updateMany(
         { 
@@ -948,7 +1084,56 @@ router.post('/games/:gameId/results', adminAuth, async (req, res) => {
     res.json({
       success: true,
       message: 'Result declared successfully',
-      result
+      result,
+      autoDeleteAt: new Date(result.declaredAt.getTime() + 24 * 60 * 60 * 1000)
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Manual cleanup endpoint (optional)
+router.delete('/results/cleanup', adminAuth, async (req, res) => {
+  try {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    
+    const deletedResults = await Result.deleteMany({
+      declaredAt: { $lte: twentyFourHoursAgo }
+    });
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${deletedResults.deletedCount} expired results`,
+      deletedCount: deletedResults.deletedCount
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get result expiry status
+router.get('/results/:resultId/expiry', adminAuth, async (req, res) => {
+  try {
+    const result = await Result.findById(req.params.resultId);
+    
+    if (!result) {
+      return res.status(404).json({ message: 'Result not found' });
+    }
+
+    const now = new Date();
+    const expiryTime = new Date(result.declaredAt.getTime() + 24 * 60 * 60 * 1000);
+    const timeUntilExpiry = expiryTime.getTime() - now.getTime();
+    const isExpired = timeUntilExpiry <= 0;
+
+    res.json({
+      success: true,
+      result: {
+        id: result._id,
+        declaredAt: result.declaredAt,
+        expiryTime,
+        timeUntilExpiry: Math.max(0, timeUntilExpiry),
+        isExpired,
+        hoursUntilExpiry: Math.max(0, Math.ceil(timeUntilExpiry / (60 * 60 * 1000)))
+      }
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
