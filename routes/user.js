@@ -2017,4 +2017,14 @@ router.get('/referral/bonus-preview/:referralCode', async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
+// GET /api/users/referral-code
+router.get('/referral-code',  authMiddleware, async (req, res) => {
+  try {
+    const referralCode = req.user.referralCode;
+    res.json({ referralCode });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error while fetching referral code' });
+  }
+});
+
 module.exports = router;
