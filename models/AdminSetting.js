@@ -24,15 +24,15 @@ const settingsSchema = new mongoose.Schema({
     },
     upiDetails: {
       upiId: { type: String, default: '' },
-      qrCodeUrl: { type: String, default: '' }
+      upiQr: { type: String, default: '' }
     },
     paytmDetails: {
       mobileNumber: { type: String, default: '' },
-      qrCodeUrl: { type: String, default: '' }
+      paytmQr: { type: String, default: '' }
     },
     googlePayDetails: {
       mobileNumber: { type: String, default: '' },
-      qrCodeUrl: { type: String, default: '' }
+      gpayQr: { type: String, default: '' }
     }
   },
   paymentInstructions: {
