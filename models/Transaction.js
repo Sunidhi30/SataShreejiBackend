@@ -43,7 +43,14 @@ const transactionSchema = new mongoose.Schema({
   processedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin'
-  }
+  },
+  paymentScreenshot: {
+    url: String,
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    }
+  },
 }, {
   timestamps: true
 });

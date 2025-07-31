@@ -32,11 +32,13 @@ const walletRoutes = require('./routes/transaction');
 const adminRoutes = require('./routes/admin');
 const adminGameRoutes = require('./routes/adminGame');
 const userGameRoutes = require('./routes/UserGame');
+const AdminSetting = require("./routes/adminSettings")
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api', walletRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin/games', adminGameRoutes);
+app.use('/api/admin/admin-settings', AdminSetting );
 app.use('/api/games', userGameRoutes);
 const PORT = process.env.PORT || 9000;
 app.listen(PORT, () => {

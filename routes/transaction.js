@@ -17,7 +17,7 @@ const authMiddleware = async (req, res, next) => {
         return res.status(401).json({ message: 'No token provided' });
       }
   
-      const secret = process.env.JWT_SECRET || 'your-secret-key';
+      const secret = process.env.JWT_SECRET || 'Apple';
       console.log('Using JWT Secret:', secret);
   
       const decoded = jwt.verify(token, secret);

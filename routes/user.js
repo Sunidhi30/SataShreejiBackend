@@ -17,6 +17,10 @@ const cloudinary = require("../utils/cloudinary")
 const mongoose = require('mongoose');
 const Notice = require("../models/Notice")
 const moment = require('moment-timezone');
+const AdminSetting = require('../models/AdminSetting');
+const streamifier = require('streamifier');
+
+
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -1970,4 +1974,233 @@ router.get('/referral-code',  authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching referral code' });
   }
 });
+
+/// below are all testing apis 
+
+// Get Wallet Details
+router.get('/user-tests-wallet', authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    // Get recent transactions
+    const recentTransactions = await Transaction.find({ user: req.user._id })
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    res.json({
+      message: 'Wallet details retrieved successfully',
+      wallet: user.wallet,
+      recentTransactions
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+//manual deposits 
+router.post('/wallet/manual-deposit', authMiddleware, upload.single('paymentScreenshot'), async (req, res) => {
+  try {
+    const { amount, utrId, paymentMethod, remarks } = req.body;
+
+    if (!amount || !utrId || !paymentMethod || !req.file) {
+      return res.status(400).json({ 
+        message: 'Amount, UTR ID, payment method and payment screenshot are required' 
+      });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({ message: 'Valid amount is required' });
+    }
+
+    const settings = await AdminSetting.findOne({});
+    const minDeposit = settings?.minimumDeposit || 100;
+
+    if (amount < minDeposit) {
+      return res.status(400).json({ 
+        message: `Minimum deposit amount is ${minDeposit}` 
+      });
+    }
+
+    // Check if UTR ID already exists
+    const existingTransaction = await Transaction.findOne({
+      'paymentDetails.transactionId': utrId,
+      type: 'deposit'
+    });
+
+    if (existingTransaction) {
+      return res.status(400).json({ 
+        message: 'This UTR ID has already been used' 
+      });
+    }
+
+    // Upload image to Cloudinary
+    const cloudResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        { folder: 'manual_deposits' },
+        (error, result) => {
+          if (result) resolve(result);
+          else reject(error);
+        }
+      );
+      streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+    });
+
+    const transaction = new Transaction({
+      user: req.user._id,
+      type: 'deposit',
+      amount: parseFloat(amount),
+      paymentMethod: paymentMethod,
+      paymentDetails: {
+        transactionId: utrId,
+        remarks: remarks || ''
+      },
+      paymentScreenshot: {
+        url: cloudResult.secure_url
+      },
+      description: `Manual deposit via ${paymentMethod}`,
+      status: 'admin_pending'
+    });
+    
+
+    await transaction.save();
+
+    // // ✅ Push screenshot into user model
+    // await User.findByIdAndUpdate(req.user._id, {
+    //   $push: {
+    //     depositScreenshots: {
+    //       url: cloudResult.secure_url,
+    //       transactionId: utrId
+    //     }
+    //   }
+    // });
+
+    res.json({
+      message: 'Deposit request submitted successfully. Please wait for admin approval.',
+      transaction: {
+        id: transaction._id,
+        amount: transaction.amount,
+        status: transaction.status,
+        utrId: utrId
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating manual deposit:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Manual Withdrawal Request
+router.post('/wallet/manual-withdraw', authMiddleware, upload.single('qrCodeImage'), async (req, res) => {
+  try {
+    const { amount, paymentMethod, accountDetails, remarks } = req.body;
+
+    // Validate inputs
+    if (!amount || !paymentMethod || !accountDetails) {
+      return res.status(400).json({ message: 'Amount, payment method and account details are required' });
+    }
+
+    const settings = await Settings.findOne({});
+    const minWithdrawal = settings?.minimumWithdrawal || 500;
+
+    if (amount < minWithdrawal) {
+      return res.status(400).json({ 
+        message: `Minimum withdrawal amount is ${minWithdrawal}` 
+      });
+    }
+
+    // Check if user has sufficient balance
+    const user = await User.findById(req.user._id);
+    if (user.wallet.balance < amount) {
+      return res.status(400).json({ message: 'Insufficient balance' });
+    }
+
+    // Check withdrawal timings
+    const currentTime = new Date();
+    const currentHour = currentTime.getHours();
+    const currentMinutes = currentTime.getMinutes();
+    const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
+
+    const withdrawalSettings = settings?.withdrawalTimings;
+    if (withdrawalSettings && withdrawalSettings.isActive) {
+      const startTime = withdrawalSettings.startTime;
+      const endTime = withdrawalSettings.endTime;
+
+      if (currentTimeStr < startTime || currentTimeStr > endTime) {
+        return res.status(400).json({ 
+          message: `Withdrawal is only allowed between ${startTime} and ${endTime}` 
+        });
+      }
+    }
+
+    // Parse account details
+    let parsedAccountDetails;
+    try {
+      parsedAccountDetails = typeof accountDetails === 'string' ? JSON.parse(accountDetails) : accountDetails;
+    } catch (error) {
+      return res.status(400).json({ message: 'Invalid account details format' });
+    }
+
+    // Create transaction record
+    const transaction = new Transaction({
+      user: req.user._id,
+      type: 'withdrawal',
+      amount: parseFloat(amount),
+      paymentMethod,
+      paymentDetails: {
+        ...parsedAccountDetails,
+        qrCodeImage: req.file ? req.file.path : null,
+        remarks: remarks || ''
+      },
+      description: `Manual withdrawal via ${paymentMethod}`,
+      status: 'admin_pending'
+    });
+
+    await transaction.save();
+
+    res.json({
+      message: 'Withdrawal request submitted successfully. Please wait for admin approval.',
+      transaction: {
+        id: transaction._id,
+        amount,
+        status: transaction.status,
+        paymentMethod
+      }
+    });
+  } catch (error) {
+    console.error('Error creating withdrawal request:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Get Transaction History for User
+router.get('/wallet/transactions', authMiddleware, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, type } = req.query;
+
+    const filter = { user: req.user._id };
+    if (type) {
+      filter.type = type;
+    }
+
+    const transactions = await Transaction.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Transaction.countDocuments(filter);
+
+    res.json({
+      message: 'Transaction history retrieved successfully',
+      transactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+
 module.exports = router;

@@ -18,7 +18,7 @@ const STATIC_ADMIN_PASSWORD = 'admin@21';
 const router = express.Router();
 const cloudinary = require("../utils/cloudinary")
 const ResultScheduler = require('../utils/resultScheduler');
-
+const AdminSettings = require("../models/AdminSetting")
 const { adminAuth } = require('../middleware/auth');
 const uploadToCloudinary = (fileBuffer) => {
       return new Promise((resolve, reject) => {
@@ -2561,6 +2561,222 @@ router.get('/admin/hardgame',  async (req, res) => {
     });
   } catch (error) {
     console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// GET admin payment details
+router.get('/admins-settings', async (req, res) => {
+  try {
+    const settings = await AdminSettings.findOne({});
+    if (!settings) {
+      return res.status(404).json({ message: 'Admin settings not found' });
+    }
+
+    res.status(200).json({
+      message: 'Admin settings fetched successfully',
+      data: {
+        adminPaymentDetails: settings.adminPaymentDetails,
+        minimumDeposit: settings.minimumDeposit,
+        minimumWithdrawal: settings.minimumWithdrawal,
+        withdrawalTimings: settings.withdrawalTimings,
+        paymentInstructions: settings.paymentInstructions,
+        autoApproval: settings.autoApproval
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admin settings:', error);
+    res.status(500).json({ message: 'Server error while fetching admin settings' });
+  }
+});
+// Get All Transactions (Deposits & Withdrawals) for Admin
+router.get('/wallet/admin/transactions', adminAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, type, userId } = req.query;
+
+    const filter = {};
+    if (status) filter.status = status;
+    if (type) filter.type = type;
+    if (userId) filter.user = userId;
+
+    const transactions = await Transaction.find(filter)
+      .populate('user', 'username email')
+      .populate('processedBy', 'username email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Transaction.countDocuments(filter);
+
+    res.json({
+      message: 'Transactions retrieved successfully',
+      transactions,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Get Single Transaction Details for Admin
+router.get('/wallet/admin/transaction/:id',adminAuth, async (req, res) => {
+  try {
+    const transaction = await Transaction.findById(req.params.id)
+    .populate('user', 'username email wallet depositScreenshots') // include screenshots
+    .populate('processedBy', 'username email');
+
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    res.json({
+      message: 'Transaction details retrieved successfully',
+      transaction
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Approve Transaction (Deposit/Withdrawal)(working fine)
+router.post('/wallet/admin/approve/:id', adminAuth, async (req, res) => {
+  try {
+    const { adminNotes } = req.body;
+    const transactionId = req.params.id;
+
+    const transaction = await Transaction.findById(transactionId).populate('user');
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if (transaction.status !== 'admin_pending') {
+      return res.status(400).json({ message: 'Transaction cannot be approved' });
+    }
+
+    const user = await User.findById(transaction.user._id);
+
+    if (transaction.type === 'deposit') {
+      // Add money to user's wallet
+      user.wallet.balance += transaction.amount;
+      user.wallet.totalDeposits += transaction.amount;
+
+      // Add to admin earnings
+      const admin = await Admin.findById(req.admin._id);
+      if (admin) {
+        admin.earnings += transaction.amount;
+        await admin.save();
+      }
+    } else if (transaction.type === 'withdrawal') {
+      // Deduct money from user's wallet
+      if (user.wallet.balance < transaction.amount) {
+        return res.status(400).json({ message: 'User has insufficient balance' });
+      }
+      user.wallet.balance -= transaction.amount;
+      user.wallet.totalWithdrawals += transaction.amount;
+    }
+
+    // Update transaction
+    transaction.status = 'completed';
+    transaction.adminNotes = adminNotes || '';
+    transaction.processedAt = new Date();
+    transaction.processedBy = req.admin._id;
+
+    await Promise.all([
+      user.save(),
+      transaction.save()
+    ]);
+
+    res.json({
+      message: `${transaction.type} approved successfully`,
+      transaction: {
+        id: transaction._id,
+        type: transaction.type,
+        amount: transaction.amount,
+        status: transaction.status,
+        user: {
+          username: user.username,
+          newBalance: user.wallet.balance
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error approving transaction:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Reject Transaction
+router.post('/wallet/admin/reject/:id', adminAuth, async (req, res) => {
+  try {
+    const { adminNotes } = req.body;
+    const transactionId = req.params.id;
+
+    const transaction = await Transaction.findById(transactionId).populate('user');
+    
+    if (!transaction) {
+      return res.status(404).json({ message: 'Transaction not found' });
+    }
+
+    if (transaction.status !== 'admin_pending') {
+      return res.status(400).json({ message: 'Transaction cannot be rejected' });
+    }
+
+    // Update transaction
+    transaction.status = 'cancelled';
+    transaction.adminNotes = adminNotes || 'Rejected by admin';
+    transaction.processedAt = new Date();
+    transaction.processedBy = req.admin._id;
+
+    await transaction.save();
+
+    res.json({
+      message: `${transaction.type} rejected successfully`,
+      transaction: {
+        id: transaction._id,
+        type: transaction.type,
+        amount: transaction.amount,
+        status: transaction.status,
+        adminNotes: transaction.adminNotes
+      }
+    });
+  } catch (error) {
+    console.error('Error rejecting transaction:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+// Get all withdrawal transactions (for Admin)
+router.get('/wallet/admin/withdrawals', adminAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, userId } = req.query;
+
+    // Filter for only withdrawal type
+    const filter = { type: 'withdrawal' };
+    if (status) filter.status = status;
+    if (userId) filter.user = userId;
+
+    const withdrawals = await Transaction.find(filter)
+      .populate('user', 'username email')
+      .populate('processedBy', 'username email')
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Transaction.countDocuments(filter);
+
+    res.json({
+      message: 'Withdrawal transactions retrieved successfully',
+      withdrawals,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
