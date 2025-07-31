@@ -2093,7 +2093,7 @@ router.post('/wallet/manual-withdraw', authMiddleware, upload.single('paymentScr
   try {
     const { amount, paymentMethod, accountDetails, remarks } = req.body;
 
-    if (!amount || !paymentMethod || !req.file || !accountDetails) {
+    if (!amount || !paymentMethod || !accountDetails) {
       return res.status(400).json({ message: 'Amount, payment method, account details, and payment screenshot are required' });
     }
 
@@ -2140,7 +2140,6 @@ router.post('/wallet/manual-withdraw', authMiddleware, upload.single('paymentScr
     return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
-
 // Get Transaction History for User
 router.get('/wallet/transactions', authMiddleware, async (req, res) => {
   try {
@@ -2172,6 +2171,4 @@ router.get('/wallet/transactions', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
-
 module.exports = router;
