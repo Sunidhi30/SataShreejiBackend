@@ -19,7 +19,7 @@ const Notice = require("../models/Notice")
 const moment = require('moment-timezone');
 const AdminSetting = require('../models/AdminSetting');
 const streamifier = require('streamifier');
-
+const  ASettings = require("../models/AdminSetting")
 
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
@@ -2167,6 +2167,20 @@ router.get('/wallet/transactions', authMiddleware, async (req, res) => {
         pages: Math.ceil(total / limit)
       }
     });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/Admin-details', async (req, res) => {
+  try {
+    let settings = await ASettings.findOne({});
+    if (!settings) {
+      settings = new ASettings({});
+      await settings.save();
+    }
+
+    res.json({ message: 'Settings retrieved successfully', settings });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
