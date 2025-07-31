@@ -2089,87 +2089,58 @@ router.post('/wallet/manual-deposit', authMiddleware, upload.single('paymentScre
   }
 });
 // Manual Withdrawal Request
-router.post('/wallet/manual-withdraw', authMiddleware, upload.single('qrCodeImage'), async (req, res) => {
+router.post('/wallet/manual-withdraw', authMiddleware, upload.single('paymentScreenshot'), async (req, res) => {
   try {
     const { amount, paymentMethod, accountDetails, remarks } = req.body;
 
-    // Validate inputs
-    if (!amount || !paymentMethod || !accountDetails) {
-      return res.status(400).json({ message: 'Amount, payment method and account details are required' });
+    if (!amount || !paymentMethod || !req.file || !accountDetails) {
+      return res.status(400).json({ message: 'Amount, payment method, account details, and payment screenshot are required' });
     }
 
-    const settings = await Settings.findOne({});
-    const minWithdrawal = settings?.minimumWithdrawal || 500;
+    const account = JSON.parse(accountDetails);
 
-    if (amount < minWithdrawal) {
-      return res.status(400).json({ 
-        message: `Minimum withdrawal amount is ${minWithdrawal}` 
-      });
-    }
-
-    // Check if user has sufficient balance
-    const user = await User.findById(req.user._id);
-    if (user.wallet.balance < amount) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    }
-
-    // Check withdrawal timings
-    const currentTime = new Date();
-    const currentHour = currentTime.getHours();
-    const currentMinutes = currentTime.getMinutes();
-    const currentTimeStr = `${currentHour.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
-
-    const withdrawalSettings = settings?.withdrawalTimings;
-    if (withdrawalSettings && withdrawalSettings.isActive) {
-      const startTime = withdrawalSettings.startTime;
-      const endTime = withdrawalSettings.endTime;
-
-      if (currentTimeStr < startTime || currentTimeStr > endTime) {
-        return res.status(400).json({ 
-          message: `Withdrawal is only allowed between ${startTime} and ${endTime}` 
-        });
+    const uploadedImage = await cloudinary.uploader.upload_stream({
+      resource_type: 'image',
+      folder: 'manual_withdrawals',
+    }, async (error, result) => {
+      if (error) {
+        return res.status(500).json({ message: 'Image upload failed', error });
       }
-    }
 
-    // Parse account details
-    let parsedAccountDetails;
-    try {
-      parsedAccountDetails = typeof accountDetails === 'string' ? JSON.parse(accountDetails) : accountDetails;
-    } catch (error) {
-      return res.status(400).json({ message: 'Invalid account details format' });
-    }
-
-    // Create transaction record
-    const transaction = new Transaction({
-      user: req.user._id,
-      type: 'withdrawal',
-      amount: parseFloat(amount),
-      paymentMethod,
-      paymentDetails: {
-        ...parsedAccountDetails,
-        qrCodeImage: req.file ? req.file.path : null,
-        remarks: remarks || ''
-      },
-      description: `Manual withdrawal via ${paymentMethod}`,
-      status: 'admin_pending'
-    });
-
-    await transaction.save();
-
-    res.json({
-      message: 'Withdrawal request submitted successfully. Please wait for admin approval.',
-      transaction: {
-        id: transaction._id,
+      const transaction = new Transaction({
+        user: req.user._id,
+        type: 'withdrawal',
         amount,
-        status: transaction.status,
-        paymentMethod
-      }
+        status: 'admin_pending' ,// 🟡 waiting for admin approval
+
+        paymentMethod,
+        description: remarks || 'Manual withdrawal request',
+        paymentDetails: {
+          mobileNumber: account.mobileNumber,
+          accountNumber: account.accountNumber,
+          ifscCode: account.ifscCode,
+          accountHolderName: account.accountHolderName,
+          upiId: account.upiId,
+          transactionId: account.transactionId,
+          reference: account.reference
+        },
+        paymentScreenshot: {
+          url: result.secure_url
+        }
+      });
+
+      await transaction.save();
+      return res.status(200).json({ message: 'Withdrawal request submitted successfully', transaction });
     });
-  } catch (error) {
-    console.error('Error creating withdrawal request:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+
+    uploadedImage.end(req.file.buffer);
+
+  } catch (err) {
+    console.error('Error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
+
 // Get Transaction History for User
 router.get('/wallet/transactions', authMiddleware, async (req, res) => {
   try {
