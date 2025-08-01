@@ -50,3 +50,6 @@ app.get("/testing", (req, res) => {
 app.get("/Spinner", (req, res) => {
   res.sendFile(__dirname + "/Spinner.html");
 })
+app.get("/deposit", (req, res) => {
+  res.sendFile(__dirname + "/manual-deposit.html");
+})

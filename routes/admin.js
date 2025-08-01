@@ -2564,7 +2564,6 @@ router.get('/admin/hardgame',  async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 // GET admin payment details
 router.get('/admins-settings', async (req, res) => {
   try {
@@ -2780,8 +2779,4 @@ router.get('/wallet/admin/withdrawals', adminAuth, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
 module.exports = router;
-
-
-

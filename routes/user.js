@@ -11,7 +11,7 @@ const HardGame = require('../models/HardGame');
 const GameRate = require('../models/GameRate');
 const GameWin = require("../models/GameWin")
 const Settings = require('../models/Settings');
-const Admin = require('../models/Admin'); // Make sure Admin model is imported
+const Admin = require('../models/Admin');
 const upload= require("../utils/upload")
 const cloudinary = require("../utils/cloudinary")
 const mongoose = require('mongoose');
@@ -20,7 +20,6 @@ const moment = require('moment-timezone');
 const AdminSetting = require('../models/AdminSetting');
 const streamifier = require('streamifier');
 const  ASettings = require("../models/AdminSetting")
-
 // JWT Authentication Middleware
 const authMiddleware = async (req, res, next) => {
     try {
@@ -1974,9 +1973,6 @@ router.get('/referral-code',  authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error while fetching referral code' });
   }
 });
-
-/// below are all testing apis 
-
 // Get Wallet Details
 router.get('/user-tests-wallet', authMiddleware, async (req, res) => {
   try {
@@ -2171,7 +2167,7 @@ router.get('/wallet/transactions', authMiddleware, async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
-
+//admin details
 router.get('/Admin-details', async (req, res) => {
   try {
     let settings = await ASettings.findOne({});
