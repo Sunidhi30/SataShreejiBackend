@@ -2085,51 +2085,110 @@ router.post('/wallet/manual-deposit', authMiddleware, upload.single('paymentScre
   }
 });
 // Manual Withdrawal Request
+// router.post('/wallet/manual-withdraw', authMiddleware, upload.single('paymentScreenshot'), async (req, res) => {
+//   try {
+//     const { amount, paymentMethod, accountDetails, remarks } = req.body;
+
+//     if (!amount || !paymentMethod || !accountDetails) {
+//       return res.status(400).json({ message: 'Amount, payment method, account details, and payment screenshot are required' });
+//     }
+
+//     const account = JSON.parse(accountDetails);
+
+//     const uploadedImage = await cloudinary.uploader.upload_stream({
+//       resource_type: 'image',
+//       folder: 'manual_withdrawals',
+//     }, async (error, result) => {
+//       if (error) {
+//         return res.status(500).json({ message: 'Image upload failed', error });
+//       }
+
+//       const transaction = new Transaction({
+//         user: req.user._id,
+//         type: 'withdrawal',
+//         amount,
+//         status: 'admin_pending' ,// 🟡 waiting for admin approval
+
+//         paymentMethod,
+//         description: remarks || 'Manual withdrawal request',
+//         paymentDetails: {
+//           mobileNumber: account.mobileNumber,
+//           accountNumber: account.accountNumber,
+//           ifscCode: account.ifscCode,
+//           accountHolderName: account.accountHolderName,
+//           upiId: account.upiId,
+//           transactionId: account.transactionId,
+//           reference: account.reference
+//         },
+//         paymentScreenshot: {
+//           url: result.secure_url
+//         }
+//       });
+
+//       await transaction.save();
+//       return res.status(200).json({ message: 'Withdrawal request submitted successfully', transaction });
+//     });
+
+//     uploadedImage.end(req.file.buffer);
+
+//   } catch (err) {
+//     console.error('Error:', err);
+//     return res.status(500).json({ message: 'Server error', error: err.message });
+//   }
+// });
 router.post('/wallet/manual-withdraw', authMiddleware, upload.single('paymentScreenshot'), async (req, res) => {
   try {
     const { amount, paymentMethod, accountDetails, remarks } = req.body;
 
-    if (!amount || !paymentMethod || !accountDetails) {
-      return res.status(400).json({ message: 'Amount, payment method, account details, and payment screenshot are required' });
+    if (!amount || !paymentMethod || !accountDetails || !req.file) {
+      return res.status(400).json({
+        message: 'Amount, payment method, account details, and payment screenshot are required'
+      });
     }
 
     const account = JSON.parse(accountDetails);
 
-    const uploadedImage = await cloudinary.uploader.upload_stream({
-      resource_type: 'image',
-      folder: 'manual_withdrawals',
-    }, async (error, result) => {
-      if (error) {
-        return res.status(500).json({ message: 'Image upload failed', error });
-      }
+    // Wrap upload_stream in a Promise
+    const uploadToCloudinary = () => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({
+          resource_type: 'image',
+          folder: 'manual_withdrawals',
+        }, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
+        });
 
-      const transaction = new Transaction({
-        user: req.user._id,
-        type: 'withdrawal',
-        amount,
-        status: 'admin_pending' ,// 🟡 waiting for admin approval
-
-        paymentMethod,
-        description: remarks || 'Manual withdrawal request',
-        paymentDetails: {
-          mobileNumber: account.mobileNumber,
-          accountNumber: account.accountNumber,
-          ifscCode: account.ifscCode,
-          accountHolderName: account.accountHolderName,
-          upiId: account.upiId,
-          transactionId: account.transactionId,
-          reference: account.reference
-        },
-        paymentScreenshot: {
-          url: result.secure_url
-        }
+        streamifier.createReadStream(req.file.buffer).pipe(stream);
       });
+    };
 
-      await transaction.save();
-      return res.status(200).json({ message: 'Withdrawal request submitted successfully', transaction });
+    const result = await uploadToCloudinary();
+
+    const transaction = new Transaction({
+      user: req.user._id,
+      type: 'withdrawal',
+      amount,
+      status: 'admin_pending', // 🟡 waiting for admin approval
+      paymentMethod,
+      description: remarks || 'Manual withdrawal request',
+      paymentDetails: {
+        mobileNumber: account.mobileNumber,
+        accountNumber: account.accountNumber,
+        ifscCode: account.ifscCode,
+        accountHolderName: account.accountHolderName,
+        upiId: account.upiId,
+        transactionId: account.transactionId,
+        reference: account.reference
+      },
+      paymentScreenshot: {
+        url: result.secure_url
+      }
     });
 
-    uploadedImage.end(req.file.buffer);
+    await transaction.save();
+
+    return res.status(200).json({ message: 'Withdrawal request submitted successfully', transaction });
 
   } catch (err) {
     console.error('Error:', err);
